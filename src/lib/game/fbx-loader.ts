@@ -42,12 +42,12 @@ export const CLASS_WEAPONS: Record<string, string> = {
 // Weapon configuration based on actual bone names from the FBX models
 // The KayKit models use bone names like "handr", "handslotr", "Knight_ArmRight"
 export const WEAPON_CONFIG: Record<string, { scale: number; position: [number, number, number]; rotation: [number, number, number]; bonePatterns: string[] }> = {
-  warrior: { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
-  paladin: { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
-  assassin: { scale: 0.12, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
-  hunter: { scale: 0.18, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
-  mage: { scale: 0.16, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
-  warlock: { scale: 0.16, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
+  warrior: { scale: 0.25, position: [0.1, 0, 0.2], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
+  paladin: { scale: 0.25, position: [0.1, 0, 0.2], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
+  assassin: { scale: 0.20, position: [0.1, 0, 0.2], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
+  hunter: { scale: 0.25, position: [0.1, 0, 0.2], rotation: [0, Math.PI / 2, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
+  mage: { scale: 0.25, position: [0.1, 0, 0.2], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
+  warlock: { scale: 0.25, position: [0.1, 0, 0.2], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
 };
 
 export const ANIMATION_FILES = {
@@ -196,6 +196,8 @@ export async function loadClassModel(
         weaponObject.position.set(...config.position);
         weaponObject.rotation.set(...config.rotation);
         console.log(`[FBX Loader] Attached weapon to bone: ${handBone.name} with scale ${config.scale}`);
+        console.log(`[FBX Loader] Weapon position: ${config.position}, rotation: ${config.rotation}`);
+        console.log(`[FBX Loader] Weapon mesh count: ${weaponObject.children.length}`);
       } else {
         // If no hand bone found, attach to root with fallback position
         console.warn(`[FBX Loader] No hand bone found for ${classId}, using fallback position`);
