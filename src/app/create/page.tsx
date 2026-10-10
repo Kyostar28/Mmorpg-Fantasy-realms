@@ -12,6 +12,12 @@ const CharacterPreview = dynamic(() => import("@/components/game/CharacterPrevie
 
 const RACE_EMBLEM: Record<RaceId, string> = { human: "🦁", elf: "🌙", orc: "🪓", undead: "💀", tauren: "🐂" };
 
+const COLOR_PALETTE = [
+  "#c79c6e", "#f58cba", "#fff569", "#abd473", "#69ccf0", "#9482c9",
+  "#ff8000", "#a335ee", "#0070dd", "#1eff00", "#ffffff", "#ff0000",
+  "#000000", "#808080", "#8b4513", "#ffd700", "#ff69b4", "#00ff00",
+];
+
 export default function CreatePage() {
   const router = useRouter();
   const [session, setSess] = useState<LocalSession | null>(null);
@@ -19,6 +25,8 @@ export default function CreatePage() {
   const [race, setRace] = useState<RaceId>("human");
   const [cls, setCls] = useState<ClassId>("warrior");
   const [graphics, setGraphics] = useState<"low" | "normal" | "high">("normal");
+  const [primaryColor, setPrimaryColor] = useState("#c79c6e");
+  const [secondaryColor, setSecondaryColor] = useState("#5a3b22");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,9 +44,9 @@ export default function CreatePage() {
     setSaving(true);
     setError(null);
     const zone = ZONES[r.startZone];
-    console.log("[Create] saving character", race, cls, graphics);
+    console.log("[Create] saving character", race, cls, graphics, primaryColor, secondaryColor);
     const res = await api.put<PlayerRecord>(`/api/player/${session.id}`, {
-      race, class_name: cls, level: 1, xp: 0, gold: 10, zone: zone.name, pos_x: zone.spawn[0], pos_z: zone.spawn[1] + 8, graphics,
+      race, class_name: cls, level: 1, xp: 0, gold: 10, zone: zone.name, pos_x: zone.spawn[0], pos_z: zone.spawn[1] + 8, graphics, primaryColor, secondaryColor,
     });
     if (!res.ok) {
       setError(typeof res.error === "string" ? res.error : "No se pudo crear el personaje.");
@@ -93,7 +101,7 @@ export default function CreatePage() {
         {/* Center: 3D preview */}
         <section className="relative flex min-h-[420px] flex-col items-center justify-end">
           <div className="absolute inset-0">
-            <CharacterPreview race={race} cls={cls} />
+            <CharacterPreview race={race} cls={cls} primaryColor={primaryColor} secondaryColor={secondaryColor} />
           </div>
           <div className="relative z-10 mb-24 text-center">
             <p className="font-display text-sm tracking-[0.4em] text-amber-400/80">{session?.username?.toUpperCase()}</p>
@@ -161,6 +169,30 @@ export default function CreatePage() {
               <p className="mt-1 text-xs text-stone-500">
                 {graphics === "low" ? "-70% rendimiento: ideal para dispositivos antiguos" : graphics === "normal" ? "Equilibrado: calidad y rendimiento" : "Máxima calidad: requiere GPU potente"}
               </p>
+              <p className="mt-4 font-display text-xs tracking-widest text-amber-400/80">COLOR PRINCIPAL</p>
+              <div className="mt-2 grid grid-cols-6 gap-1.5">
+                {COLOR_PALETTE.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setPrimaryColor(color)}
+                    className={`h-8 w-full rounded border-2 transition ${primaryColor === color ? "border-amber-400 scale-110" : "border-stone-700 hover:border-stone-500"}`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <p className="mt-4 font-display text-xs tracking-widest text-amber-400/80">COLOR SECUNDARIO</p>
+              <div className="mt-2 grid grid-cols-6 gap-1.5">
+                {COLOR_PALETTE.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setSecondaryColor(color)}
+                    className={`h-8 w-full rounded border-2 transition ${secondaryColor === color ? "border-amber-400 scale-110" : "border-stone-700 hover:border-stone-500"}`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
               {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
               <button onClick={create} disabled={saving} className="mt-4 flex items-center justify-center gap-2 rounded bg-gradient-to-b from-[#b81d1d] to-[#5e0b0b] px-6 py-3.5 font-display text-lg font-bold tracking-widest text-amber-100 shadow-[0_0_25px_rgba(184,29,29,0.35)] transition hover:brightness-125 disabled:opacity-60">
                 {saving && <Loader2 className="h-5 w-5 animate-spin" />} CREAR Y JUGAR

@@ -22,6 +22,8 @@ export const players = sqliteTable(
     inventory: text(),
     equipment: text(),
     graphics: text().notNull().default('normal'),
+    primaryColor: text().default('#c79c6e'),
+    secondaryColor: text().default('#5a3b22'),
     lastLogin: text(),
     createdAt: text().notNull(),
   },

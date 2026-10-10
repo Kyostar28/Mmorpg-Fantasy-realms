@@ -354,6 +354,8 @@ export interface PlayerRecord {
   equipment?: string;
   kills?: number;
   graphics?: "low" | "normal" | "high";
+  primaryColor?: string;
+  secondaryColor?: string;
   last_login?: string;
 }
 

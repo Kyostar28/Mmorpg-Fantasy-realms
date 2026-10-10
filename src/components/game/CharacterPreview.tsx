@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { CLASSES, RACES, type ClassId, type RaceId } from "@/lib/game/data";
-import { buildPlayerModel, type Model } from "@/lib/game/models";
+import { loadClassModel, updateModelColors, playAnimation, disposeModel, type FBXModel } from "@/lib/game/fbx-loader";
 
 // Live 3D preview of the selected race + class, with idle/attack/cast animations.
-export function CharacterPreview({ race, cls }: { race: RaceId; cls: ClassId }) {
+export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { race: RaceId; cls: ClassId; primaryColor?: string; secondaryColor?: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  const state = useRef<{ scene: THREE.Scene; model: Model | null; holder: THREE.Group } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const state = useRef<{ scene: THREE.Scene; model: FBXModel | null; holder: THREE.Group; mixer: THREE.AnimationMixer | null } | null>(null);
 
   useEffect(() => {
     const el = ref.current!;
@@ -40,13 +41,11 @@ export function CharacterPreview({ race, cls }: { race: RaceId; cls: ClassId }) 
     scene.add(ring);
     const holder = new THREE.Group();
     scene.add(holder);
-    state.current = { scene, model: null, holder };
+    state.current = { scene, model: null, holder, mixer: null };
 
     let raf = 0;
     let t = 0;
     let last = performance.now();
-    const anim = { speed: 0, action: null as null | "attack" | "cast", actionT: 0, dead: false, deadT: 0 };
-    let nextAction = 2;
     const loop = () => {
       raf = requestAnimationFrame(loop);
       const now = performance.now();
@@ -54,17 +53,7 @@ export function CharacterPreview({ race, cls }: { race: RaceId; cls: ClassId }) 
       last = now;
       t += dt;
       holder.rotation.y = Math.sin(t * 0.4) * 0.6 + 0.2;
-      nextAction -= dt;
-      if (nextAction <= 0) {
-        anim.action = Math.random() < 0.5 ? "attack" : "cast";
-        anim.actionT = 0;
-        nextAction = 3;
-      }
-      if (anim.action) {
-        anim.actionT += dt;
-        if (anim.actionT > (anim.action === "cast" ? 1.2 : 0.55)) anim.action = null;
-      }
-      state.current?.model?.animate(dt, t, anim);
+      state.current?.mixer?.update(dt);
       renderer.render(scene, camera);
     };
     loop();
@@ -85,18 +74,55 @@ export function CharacterPreview({ race, cls }: { race: RaceId; cls: ClassId }) 
   useEffect(() => {
     const s = state.current;
     if (!s) return;
-    if (s.model) {
-      s.holder.remove(s.model.root);
-      s.model.dispose();
-    }
-    const r = RACES.find((x) => x.id === race)!;
-    const c = CLASSES.find((x) => x.id === cls)!;
-    const m = buildPlayerModel(r, c);
-    s.holder.add(m.root);
-    s.model = m;
-    const scale = 1 / Math.max(1, r.scale * 0.92);
-    s.holder.scale.setScalar(scale);
-  }, [race, cls]);
+    
+    const loadModel = async () => {
+      setLoading(true);
+      if (s.model) {
+        s.holder.remove(s.model.root);
+        disposeModel(s.model);
+        s.model = null;
+      }
+      
+      try {
+        const primColor = primaryColor || "#c79c6e";
+        const secColor = secondaryColor || "#5a3b22";
+        const model = await loadClassModel(cls, primColor, secColor);
+        s.holder.add(model.root);
+        s.model = model;
+        s.mixer = model.mixer;
+        
+        // Scale the model appropriately
+        const r = RACES.find((x) => x.id === race)!;
+        const scale = 1 / Math.max(1, r.scale * 0.92);
+        s.holder.scale.setScalar(scale);
+        
+        // Play idle animation if available
+        playAnimation(model, "Idle", true);
+      } catch (e) {
+        console.error("Failed to load FBX model:", e);
+      }
+      setLoading(false);
+    };
+    
+    loadModel();
+  }, [race, cls, primaryColor, secondaryColor]);
+
+  useEffect(() => {
+    const s = state.current;
+    if (!s || !s.model || !primaryColor || !secondaryColor) return;
+    updateModelColors(s.model, primaryColor, secondaryColor);
+  }, [primaryColor, secondaryColor]);
+
+  if (loading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div className="text-center">
+          <div className="mb-2 h-8 w-8 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+          <p className="text-xs text-stone-400">Cargando modelo...</p>
+        </div>
+      </div>
+    );
+  }
 
   return <div ref={ref} className="h-full w-full" />;
 }
