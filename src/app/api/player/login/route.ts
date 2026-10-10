@@ -1,7 +1,5 @@
 import type { PlayerRecord } from '@/lib/game/data';
-
-// Almacenamiento en memoria para simular base de datos (se pierde al reiniciar el servidor)
-const playersStore = new Map<string, PlayerRecord>();
+import { playersStore } from '@/lib/player-store';
 
 // Username-only login: simula login sin base de datos usando localStorage del cliente
 export async function POST(request: Request) {

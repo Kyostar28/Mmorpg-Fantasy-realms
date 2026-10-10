@@ -1,11 +1,9 @@
 import type { PlayerRecord } from '@/lib/game/data';
+import { playersStore } from '@/lib/player-store';
 
 const GRAPHICS = ['low', 'normal', 'high'];
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
-
-// Almacenamiento en memoria para simular base de datos (se pierde al reiniciar el servidor)
-const playersStore = new Map<string, PlayerRecord>();
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
