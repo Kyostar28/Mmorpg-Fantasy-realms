@@ -83,9 +83,20 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
     const loadModel = async () => {
       setLoading(true);
       if (s.model) {
+        // Stop all animations
+        s.model.mixer.stopAllAction();
+        // Remove model from holder
         s.holder.remove(s.model.root);
+        // Dispose the model completely
         disposeModel(s.model);
         s.model = null;
+        s.mixer = null;
+      }
+
+      // Clear all children from holder to ensure no leftover models
+      while (s.holder.children.length > 0) {
+        const child = s.holder.children[0];
+        s.holder.remove(child);
       }
 
       try {
