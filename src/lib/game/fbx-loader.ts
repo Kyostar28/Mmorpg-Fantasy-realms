@@ -39,14 +39,15 @@ export const CLASS_WEAPONS: Record<string, string> = {
   warlock: "/pjs/Assets/fbx/staff.fbx", // Using staff for now (no skullstaff in assets)
 };
 
-// Precise weapon configuration for each class - KayKit uses simple bone names like "armRight", "armLeft"
+// Weapon configuration based on actual bone names from the FBX models
+// The KayKit models use bone names like "handr", "handslotr", "Knight_ArmRight"
 export const WEAPON_CONFIG: Record<string, { scale: number; position: [number, number, number]; rotation: [number, number, number]; bonePatterns: string[] }> = {
-  warrior: { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
-  paladin: { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
-  assassin: { scale: 0.12, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
-  hunter: { scale: 0.18, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
-  mage: { scale: 0.16, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
-  warlock: { scale: 0.16, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
+  warrior: { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
+  paladin: { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
+  assassin: { scale: 0.12, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
+  hunter: { scale: 0.18, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
+  mage: { scale: 0.16, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
+  warlock: { scale: 0.16, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
 };
 
 export const ANIMATION_FILES = {
@@ -150,23 +151,45 @@ export async function loadClassModel(
       const weaponObject = await loader.loadAsync(weaponPath);
       
       // Get precise configuration for this class
-      const config = WEAPON_CONFIG[classId] || { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R"] };
+      const config = WEAPON_CONFIG[classId] || { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr"] };
       weaponObject.scale.setScalar(config.scale);
       
       // Find the right hand bone using class-specific patterns
+      // Prioritize bones with "slot" in the name as they're designed for attachments
       let handBone: THREE.Object3D | null = null;
-      
+      const childName = (child: THREE.Object3D) => child.name.toLowerCase();
+
       object.traverse((child) => {
-        if (!handBone) {
-          for (const pattern of config.bonePatterns) {
-            if (child.name === pattern || child.name.includes(pattern)) {
-              handBone = child;
-              console.log(`[FBX Loader] Found hand bone for ${classId}: ${child.name} (pattern: ${pattern})`);
-              break;
+        if (!handBone && child.name) {
+          const lowerName = childName(child);
+          // First try to find a slot bone (handslotr, etc.)
+          if (lowerName.includes('slot')) {
+            for (const pattern of config.bonePatterns) {
+              if (lowerName.includes(pattern.toLowerCase())) {
+                handBone = child;
+                console.log(`[FBX Loader] Found slot bone for ${classId}: ${child.name} (pattern: ${pattern})`);
+                break;
+              }
             }
           }
         }
       });
+
+      // If no slot bone found, try regular hand bones
+      if (!handBone) {
+        object.traverse((child) => {
+          if (!handBone && child.name) {
+            const lowerName = childName(child);
+            for (const pattern of config.bonePatterns) {
+              if (lowerName.includes(pattern.toLowerCase())) {
+                handBone = child;
+                console.log(`[FBX Loader] Found hand bone for ${classId}: ${child.name} (pattern: ${pattern})`);
+                break;
+              }
+            }
+          }
+        });
+      }
       
       if (handBone) {
         handBone.add(weaponObject);
