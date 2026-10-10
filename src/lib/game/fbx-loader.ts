@@ -40,6 +40,10 @@ export const CLASS_WEAPONS: Record<string, string> = {
   warlock: "/pjs/Assets/fbx/staff.fbx",
 };
 
+export const CLASS_SHIELDS: Record<string, string> = {
+  paladin: "/pjs/Assets/fbx/shield_round.fbx",
+};
+
 // Configuración precisa de armas para KayKit
 export interface WeaponSlotConfig {
   hand: "right" | "left" | "both"; // 'both' para clases como el pícaro / asesino
@@ -50,6 +54,12 @@ export interface WeaponSlotConfig {
   // Ajuste específico si lleva arma secundaria en la mano izquierda:
   leftHandRotation?: [number, number, number];
   leftHandPosition?: [number, number, number];
+  // Configuración de escudo (opcional)
+  shield?: {
+    scale: number;
+    position: [number, number, number];
+    rotation: [number, number, number];
+  };
 }
 
 export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
@@ -65,6 +75,11 @@ export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
     scale: 0.01,
     position: [0, -0.15, 0],
     rotation: [-Math.PI / 2, 0, 0],
+    shield: {
+      scale: 0.01,
+      position: [0, -0.05, 0.05],
+      rotation: [0, Math.PI / 2, 0],
+    },
   },
 
   // Pícaro / Asesino (Dagas duales: derecha e izquierda)
@@ -134,6 +149,7 @@ export async function loadClassModel(
   const modelPath = CLASS_MODELS[classId];
   const texturePath = CLASS_TEXTURES[classId];
   const weaponPath = CLASS_WEAPONS[classId];
+  const shieldPath = CLASS_SHIELDS[classId];
 
   if (!modelPath) {
     throw new Error(`No model found for class: ${classId}`);
@@ -220,12 +236,38 @@ export async function loadClassModel(
     }
   }
 
-  // 5. Aplicar colorización si se proporcionan colores
+  // 5. Cargar y acoplar el escudo (si existe)
+  if (shieldPath && WEAPON_CONFIG[classId]?.shield) {
+    try {
+      const config = WEAPON_CONFIG[classId]!;
+      const shieldConfig = config.shield!;
+      const shieldFBX = await loader.loadAsync(shieldPath);
+
+      // Ajustar materiales del escudo
+      shieldFBX.traverse((c) => {
+        if (c instanceof THREE.Mesh) c.castShadow = true;
+      });
+
+      // Equipar escudo en mano izquierda
+      const leftBone = getBoneSlot(object, "l");
+      if (leftBone) {
+        shieldFBX.scale.setScalar(shieldConfig.scale);
+        shieldFBX.position.set(...shieldConfig.position);
+        shieldFBX.rotation.set(...shieldConfig.rotation);
+        leftBone.add(shieldFBX);
+        console.log(`[FBX] Escudo acoplado a mano izquierda (${leftBone.name})`);
+      }
+    } catch (err) {
+      console.error(`Error cargando escudo ${shieldPath}:`, err);
+    }
+  }
+
+  // 6. Aplicar colorización si se proporcionan colores
   if (primaryColor || secondaryColor) {
     applyColorCustomization(object, primaryColor || "#c79c6e", secondaryColor || "#5a3b22");
   }
 
-  // 6. Animaciones
+  // 7. Animaciones
   const mixer = new THREE.AnimationMixer(object);
   const animations = new Map<string, THREE.AnimationClip>();
 
