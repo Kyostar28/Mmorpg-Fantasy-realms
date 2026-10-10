@@ -353,6 +353,7 @@ export interface PlayerRecord {
   inventory?: string;
   equipment?: string;
   kills?: number;
+  graphics?: "low" | "normal" | "high";
   last_login?: string;
 }
 

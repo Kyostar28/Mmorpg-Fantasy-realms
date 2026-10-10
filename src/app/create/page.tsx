@@ -18,6 +18,7 @@ export default function CreatePage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [race, setRace] = useState<RaceId>("human");
   const [cls, setCls] = useState<ClassId>("warrior");
+  const [graphics, setGraphics] = useState<"low" | "normal" | "high">("normal");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,9 +36,9 @@ export default function CreatePage() {
     setSaving(true);
     setError(null);
     const zone = ZONES[r.startZone];
-    console.log("[Create] saving character", race, cls);
+    console.log("[Create] saving character", race, cls, graphics);
     const res = await api.put<PlayerRecord>(`/api/player/${session.id}`, {
-      race, class_name: cls, level: 1, xp: 0, gold: 10, zone: zone.name, pos_x: zone.spawn[0], pos_z: zone.spawn[1] + 8,
+      race, class_name: cls, level: 1, xp: 0, gold: 10, zone: zone.name, pos_x: zone.spawn[0], pos_z: zone.spawn[1] + 8, graphics,
     });
     if (!res.ok) {
       setError(typeof res.error === "string" ? res.error : "No se pudo crear el personaje.");
@@ -141,6 +142,25 @@ export default function CreatePage() {
                   </div>
                 ))}
               </div>
+              <p className="mt-4 font-display text-xs tracking-widest text-amber-400/80">CALIDAD GRÁFICA</p>
+              <div className="mt-2 flex gap-2">
+                {(["low", "normal", "high"] as const).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGraphics(g)}
+                    className={`flex-1 rounded border px-3 py-2 text-sm font-display transition ${
+                      graphics === g
+                        ? "border-amber-400 bg-amber-500/10 text-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.15)]"
+                        : "border-stone-800 bg-black/30 text-stone-400 hover:border-stone-600 hover:text-stone-200"
+                    }`}
+                  >
+                    {g === "low" ? "Bajo" : g === "normal" ? "Normal" : "Alto"}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-stone-500">
+                {graphics === "low" ? "-70% rendimiento: ideal para dispositivos antiguos" : graphics === "normal" ? "Equilibrado: calidad y rendimiento" : "Máxima calidad: requiere GPU potente"}
+              </p>
               {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
               <button onClick={create} disabled={saving} className="mt-4 flex items-center justify-center gap-2 rounded bg-gradient-to-b from-[#b81d1d] to-[#5e0b0b] px-6 py-3.5 font-display text-lg font-bold tracking-widest text-amber-100 shadow-[0_0_25px_rgba(184,29,29,0.35)] transition hover:brightness-125 disabled:opacity-60">
                 {saving && <Loader2 className="h-5 w-5 animate-spin" />} CREAR Y JUGAR

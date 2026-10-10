@@ -162,13 +162,15 @@ export class GameEngine {
       await new Promise((r) => setTimeout(r, 16));
       if (this.disposed) throw new Error("disposed");
     };
-    console.log("[Engine] init", this.rec.username, this.race.id, this.cls.id);
+    console.log("[Engine] init", this.rec.username, this.race.id, this.cls.id, "graphics:", this.rec.graphics);
     await step("Preparando el renderizador…", 5);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    const graphics = this.rec.graphics ?? "normal";
+    const pixelRatio = graphics === "low" ? 0.3 : graphics === "high" ? window.devicePixelRatio : Math.min(window.devicePixelRatio, 1.5);
+    this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = graphics !== "low";
+    this.renderer.shadowMap.type = graphics === "high" ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -179,8 +181,9 @@ export class GameEngine {
     this.hemi = new THREE.HemisphereLight("#9fd8ff", "#203030", 0.9);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight("#ffffff", 2);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.castShadow = graphics !== "low";
+    const shadowSize = graphics === "high" ? 4096 : graphics === "low" ? 1024 : 2048;
+    this.sun.shadow.mapSize.set(shadowSize, shadowSize);
     const sc = this.sun.shadow.camera;
     sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 1; sc.far = 400;
     this.sun.shadow.bias = -0.0004;
@@ -223,8 +226,11 @@ export class GameEngine {
     // post-processing
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(this.container.clientWidth / 2, this.container.clientHeight / 2), 0.55, 0.5, 0.82);
-    this.composer.addPass(bloom);
+    if (graphics !== "low") {
+      const bloomStrength = graphics === "high" ? 0.7 : 0.55;
+      const bloom = new UnrealBloomPass(new THREE.Vector2(this.container.clientWidth / 2, this.container.clientHeight / 2), bloomStrength, 0.5, 0.82);
+      this.composer.addPass(bloom);
+    }
     this.composer.addPass(new OutputPass());
 
     this.bindInput();
