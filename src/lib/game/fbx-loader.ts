@@ -1,4 +1,4 @@
-// FBX model loader for character classes with animations and color customization
+// FBX model loader for character classes with animations and weapon slots
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 
@@ -10,7 +10,6 @@ export interface FBXModel {
 }
 
 const loader = new FBXLoader();
-const modelCache = new Map<string, FBXModel>();
 
 export const CLASS_MODELS: Record<string, string> = {
   warrior: "/pjs/Characters/fbx/Knight.fbx",
@@ -18,13 +17,13 @@ export const CLASS_MODELS: Record<string, string> = {
   assassin: "/pjs/Characters/fbx/Rogue_Hooded.fbx",
   hunter: "/pjs/Characters/fbx/Ranger.fbx",
   mage: "/pjs/Characters/fbx/Mage.fbx",
-  warlock: "/pjs/Characters/fbx/Mage.fbx", // Temporal hasta tener el modelo específico
+  warlock: "/pjs/Characters/fbx/Mage.fbx",
 };
 
 export const CLASS_TEXTURES: Record<string, string> = {
   warrior: "/pjs/Characters/fbx/knight_texture.png",
   paladin: "/pjs/Characters/fbx/knight_texture.png",
-  assassin: "/pjs/Characters/fbx/rogue_texture.png", // Rogue_Hooded uses rogue texture
+  assassin: "/pjs/Characters/fbx/rogue_texture.png",
   hunter: "/pjs/Characters/fbx/ranger_texture.png",
   mage: "/pjs/Characters/fbx/mage_texture.png",
   warlock: "/pjs/Characters/fbx/mage_texture.png",
@@ -32,22 +31,59 @@ export const CLASS_TEXTURES: Record<string, string> = {
 
 export const CLASS_WEAPONS: Record<string, string> = {
   warrior: "/pjs/Assets/fbx/sword_1handed.fbx",
-  paladin: "/pjs/Assets/fbx/sword_1handed.fbx", // Using sword for now (no hammer in assets)
+  paladin: "/pjs/Assets/fbx/sword_1handed.fbx",
   assassin: "/pjs/Assets/fbx/dagger.fbx",
   hunter: "/pjs/Assets/fbx/bow.fbx",
   mage: "/pjs/Assets/fbx/staff.fbx",
-  warlock: "/pjs/Assets/fbx/staff.fbx", // Using staff for now (no skullstaff in assets)
+  warlock: "/pjs/Assets/fbx/staff.fbx",
 };
 
-// Weapon configuration based on actual bone names from the FBX models
-// The KayKit models use bone names like "handslot.r", "handslot.l", "head"
-export const WEAPON_CONFIG: Record<string, { scale: number; position: [number, number, number]; rotation: [number, number, number]; bonePatterns: string[] }> = {
-  warrior: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
-  paladin: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
-  assassin: { scale: 0.04, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "upperarmr", "lowerarmr"] },
-  hunter: { scale: 0.06, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "upperarmr", "lowerarmr"] },
-  mage: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "upperarmr", "lowerarmr"] },
-  warlock: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "upperarmr", "lowerarmr"] },
+// Configuración calibrada para KayKit Rig_Medium
+export const WEAPON_CONFIG: Record<
+  string,
+  {
+    targetLength: number; // Largo deseado en unidades (1.0 = ~1 metro)
+    position: [number, number, number];
+    rotation: [number, number, number];
+    hand: "r" | "l";
+  }
+> = {
+  warrior: {
+    targetLength: 1.1, // Espada de una mano
+    position: [0, 0, 0],
+    rotation: [0, 0, -Math.PI / 2],
+    hand: "r",
+  },
+  paladin: {
+    targetLength: 1.1,
+    position: [0, 0, 0],
+    rotation: [0, 0, -Math.PI / 2],
+    hand: "r",
+  },
+  assassin: {
+    targetLength: 0.6, // Daga
+    position: [0, 0, 0],
+    rotation: [0, 0, -Math.PI / 2],
+    hand: "r",
+  },
+  hunter: {
+    targetLength: 1.3, // Arco (va en mano izquierda o derecha según tu animación)
+    position: [0, 0, 0],
+    rotation: [0, Math.PI / 2, -Math.PI / 2],
+    hand: "r",
+  },
+  mage: {
+    targetLength: 1.7, // Báculo de mago
+    position: [0, -0.2, 0],
+    rotation: [0, 0, -Math.PI / 2],
+    hand: "r",
+  },
+  warlock: {
+    targetLength: 1.7,
+    position: [0, -0.2, 0],
+    rotation: [0, 0, -Math.PI / 2],
+    hand: "r",
+  },
 };
 
 export const ANIMATION_FILES = {
@@ -55,17 +91,38 @@ export const ANIMATION_FILES = {
   movement: "/pjs/Animations/fbx/Rig_Medium/Rig_Medium_MovementBasic.fbx",
 };
 
+/**
+ * Busca específicamente el hueso del slot de la mano en el esqueleto.
+ * Three.js remueve puntos/símbolos, por lo que busca 'handslotr' o 'handr'.
+ */
+function findHandSlotBone(object: THREE.Object3D, side: "r" | "l"): THREE.Object3D | null {
+  const targetSlot = `handslot${side}`;
+  const targetHand = `hand${side}`;
+
+  let slotBone: THREE.Object3D | null = null;
+  let handFallback: THREE.Object3D | null = null;
+
+  object.traverse((child) => {
+    // Solo nos interesan los huesos (evita SkinnedMesh como Knight_ArmRight)
+    if ((child as any).isBone || child.type === "Bone") {
+      const cleanName = child.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      if (cleanName === targetSlot && !slotBone) {
+        slotBone = child;
+      } else if (cleanName === targetHand && !handFallback) {
+        handFallback = child;
+      }
+    }
+  });
+
+  return slotBone || handFallback;
+}
+
 export async function loadClassModel(
   classId: string,
-  primaryColor: string,
-  secondaryColor: string
+  primaryColor?: string,
+  secondaryColor?: string
 ): Promise<FBXModel> {
-  // Temporarily disable cache to ensure weapons load correctly
-  // const cacheKey = `${classId}_${primaryColor}_${secondaryColor}`;
-  // if (modelCache.has(cacheKey)) {
-  //   return modelCache.get(cacheKey)!;
-  // }
-
   const modelPath = CLASS_MODELS[classId];
   const texturePath = CLASS_TEXTURES[classId];
   const weaponPath = CLASS_WEAPONS[classId];
@@ -74,42 +131,12 @@ export async function loadClassModel(
     throw new Error(`No model found for class: ${classId}`);
   }
 
-  // Load the model
+  // 1. Cargar el personaje
   const object = await loader.loadAsync(modelPath);
   const root = new THREE.Group();
   root.add(object);
 
-  // Log all bone names for debugging - COMPLETE LIST
-  const boneNames: string[] = [];
-  const boneDetails: { name: string; type: string; parent: string }[] = [];
-  object.traverse((child) => {
-    if (child.name) {
-      boneNames.push(child.name);
-      boneDetails.push({
-        name: child.name,
-        type: child.type,
-        parent: child.parent?.name || 'none'
-      });
-    }
-  });
-  const handBones = boneNames.filter(n => n.toLowerCase().includes('hand'));
-  const weaponBones = boneNames.filter(n => n.toLowerCase().includes('weapon'));
-  const rightBones = boneNames.filter(n => n.toLowerCase().includes('right') || n.includes('R_'));
-  const armBones = boneNames.filter(n => n.toLowerCase().includes('arm'));
-  
-  console.log(`\n========== ${classId.toUpperCase()} MODEL BONES ==========`);
-  console.log(`Total bones: ${boneNames.length}`);
-  console.log('\n--- HAND BONES (36) ---');
-  handBones.forEach((b, i) => console.log(`  ${i}: ${b}`));
-  console.log('\n--- ARM BONES ---');
-  armBones.forEach((b, i) => console.log(`  ${i}: ${b}`));
-  console.log('\n--- RIGHT BONES ---');
-  rightBones.forEach((b, i) => console.log(`  ${i}: ${b}`));
-  console.log('\n--- WEAPON BONES ---');
-  console.log(weaponBones.length > 0 ? weaponBones : 'No weapon bones found');
-  console.log('============================================================\n');
-
-  // Store original materials
+  // 2. Guardar materiales originales
   const originalMaterials = new Map<THREE.Mesh, THREE.Material>();
   object.traverse((child) => {
     if (child instanceof THREE.Mesh) {
@@ -117,120 +144,91 @@ export async function loadClassModel(
     }
   });
 
-  // Load and apply texture
+  // 3. Aplicar textura base del personaje
   if (texturePath) {
     const textureLoader = new THREE.TextureLoader();
     try {
       const texture = await textureLoader.loadAsync(texturePath);
       texture.colorSpace = THREE.SRGBColorSpace;
-      
+
       object.traverse((child) => {
         if (child instanceof THREE.Mesh && child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((mat) => {
-              if (mat instanceof THREE.MeshStandardMaterial) {
-                mat.map = texture;
-                mat.needsUpdate = true;
-              }
-            });
-          } else if (child.material instanceof THREE.MeshStandardMaterial) {
-            child.material.map = texture;
-            child.material.needsUpdate = true;
-          }
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach((mat) => {
+            if (mat instanceof THREE.MeshStandardMaterial) {
+              mat.map = texture;
+              mat.needsUpdate = true;
+            }
+          });
         }
       });
-      console.log(`[FBX Loader] Applied texture: ${texturePath}`);
     } catch (e) {
       console.warn(`Failed to load texture ${texturePath}:`, e);
     }
   }
 
-  // Load and attach weapon
+  // 4. Cargar y acoplar el arma
   if (weaponPath) {
     try {
       const weaponObject = await loader.loadAsync(weaponPath);
-      
-      // Get precise configuration for this class
-      const config = WEAPON_CONFIG[classId] || { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr"] };
-      weaponObject.scale.setScalar(config.scale);
-      
-      // Find the right hand bone using class-specific patterns
-      // Prioritize bones with "slot" in the name as they're designed for attachments
-      let handBone: THREE.Object3D | null = null;
+      const config = WEAPON_CONFIG[classId] || {
+        targetLength: 1.0,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        hand: "r",
+      };
 
-      object.traverse((child) => {
-        if (!handBone && child.name) {
-          for (const pattern of config.bonePatterns) {
-            // Try exact match first (for "handslot.r", "handslot.l", "head")
-            if (child.name === pattern) {
-              handBone = child;
-              console.log(`[FBX Loader] Found exact match bone for ${classId}: ${child.name} (pattern: ${pattern})`);
-              break;
-            }
-            // Then try case-insensitive match with includes
-            if (child.name.toLowerCase().includes(pattern.toLowerCase())) {
-              handBone = child;
-              console.log(`[FBX Loader] Found matching bone for ${classId}: ${child.name} (pattern: ${pattern})`);
-              break;
-            }
-          }
-        }
-      });
-      
+      // Auto-escalado según las dimensiones reales del archivo FBX del arma
+      const box = new THREE.Box3().setFromObject(weaponObject);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDimension = Math.max(size.x, size.y, size.z);
+
+      if (maxDimension > 0) {
+        const finalScale = config.targetLength / maxDimension;
+        weaponObject.scale.setScalar(finalScale);
+      }
+
+      // Buscar el hueso exacto de la mano
+      const handBone = findHandSlotBone(object, config.hand);
+
       if (handBone) {
         handBone.add(weaponObject);
         weaponObject.position.set(...config.position);
         weaponObject.rotation.set(...config.rotation);
-        console.log(`[FBX Loader] Attached weapon to bone: ${handBone.name} with scale ${config.scale}`);
-        console.log(`[FBX Loader] Weapon position: ${config.position}, rotation: ${config.rotation}`);
-        console.log(`[FBX Loader] Weapon mesh count: ${weaponObject.children.length}`);
+        console.log(`[FBX] Arma acoplada exitosamente a ${handBone.name}`);
       } else {
-        // If no hand bone found, attach to root with fallback position
-        console.warn(`[FBX Loader] No hand bone found for ${classId}, using fallback position`);
-        object.add(weaponObject);
-        weaponObject.position.set(0.3, 1.2, 0.3);
-        weaponObject.rotation.set(0, Math.PI / 4, 0);
+        console.error(`[FBX] No se encontró el hueso handslot para ${classId}`);
       }
     } catch (e) {
       console.error(`Failed to load weapon ${weaponPath}:`, e);
     }
   }
 
-  // Apply color customization
-  applyColorCustomization(object, primaryColor, secondaryColor);
+  // 5. Aplicar colorización si se proporcionan colores
+  if (primaryColor || secondaryColor) {
+    applyColorCustomization(object, primaryColor || "#c79c6e", secondaryColor || "#5a3b22");
+  }
 
-  // Create animation mixer
+  // 6. Animaciones
   const mixer = new THREE.AnimationMixer(object);
   const animations = new Map<string, THREE.AnimationClip>();
 
-  // Load animations
   try {
     const generalAnim = await loader.loadAsync(ANIMATION_FILES.general);
-    generalAnim.animations.forEach((clip) => {
-      animations.set(clip.name, clip);
-    });
+    generalAnim.animations.forEach((clip) => animations.set(clip.name, clip));
   } catch (e) {
     console.warn("Failed to load general animations:", e);
   }
 
   try {
     const movementAnim = await loader.loadAsync(ANIMATION_FILES.movement);
-    movementAnim.animations.forEach((clip) => {
-      animations.set(clip.name, clip);
-    });
+    movementAnim.animations.forEach((clip) => animations.set(clip.name, clip));
   } catch (e) {
     console.warn("Failed to load movement animations:", e);
   }
 
-  const model: FBXModel = {
-    root,
-    mixer,
-    animations,
-    originalMaterials,
-  };
-
-  // modelCache.set(cacheKey, model);
-  return model;
+  return { root, mixer, animations, originalMaterials };
 }
 
 function applyColorCustomization(
@@ -244,20 +242,16 @@ function applyColorCustomization(
   object.traverse((child) => {
     if (child instanceof THREE.Mesh && child.material) {
       const materials = Array.isArray(child.material) ? child.material : [child.material];
-      
+
       materials.forEach((mat, index) => {
         if (mat instanceof THREE.MeshStandardMaterial) {
-          // If material has a texture, apply color as tint
-          // If no texture, apply solid color
           if (mat.map) {
-            // Tint the texture with the color
             if (index === 0) {
               mat.color = primary.clone();
             } else {
               mat.color = secondary.clone();
             }
           } else {
-            // Solid color for materials without texture
             if (index === 0) {
               mat.color = primary.clone();
             } else {
@@ -276,7 +270,6 @@ export function updateModelColors(
   primaryColor: string,
   secondaryColor: string
 ) {
-  // Restore original materials first
   model.root.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       const original = model.originalMaterials.get(child);
@@ -286,7 +279,6 @@ export function updateModelColors(
     }
   });
 
-  // Apply new colors
   applyColorCustomization(model.root, primaryColor, secondaryColor);
 }
 
@@ -299,12 +291,8 @@ export function playAnimation(model: FBXModel, name: string, loop = true) {
 
   const action = model.mixer.clipAction(clip);
   action.reset();
-  if (loop) {
-    action.loop = THREE.LoopRepeat;
-  } else {
-    action.loop = THREE.LoopOnce;
-    action.clampWhenFinished = true;
-  }
+  action.loop = loop ? THREE.LoopRepeat : THREE.LoopOnce;
+  action.clampWhenFinished = !loop;
   action.play();
   return action;
 }
