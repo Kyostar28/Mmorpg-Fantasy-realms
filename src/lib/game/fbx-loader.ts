@@ -39,14 +39,14 @@ export const CLASS_WEAPONS: Record<string, string> = {
   warlock: "/pjs/Assets/fbx/staff.fbx", // Using staff for now (no skullstaff in assets)
 };
 
-// Precise weapon configuration for each class - will be adjusted based on actual bone names discovered
+// Precise weapon configuration for each class - KayKit uses simple bone names like "armRight", "armLeft"
 export const WEAPON_CONFIG: Record<string, { scale: number; position: [number, number, number]; rotation: [number, number, number]; bonePatterns: string[] }> = {
-  warrior: { scale: 0.08, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
-  paladin: { scale: 0.08, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
-  assassin: { scale: 0.06, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
-  hunter: { scale: 0.1, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
-  mage: { scale: 0.09, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
-  warlock: { scale: 0.09, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
+  warrior: { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
+  paladin: { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
+  assassin: { scale: 0.12, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
+  hunter: { scale: 0.18, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
+  mage: { scale: 0.16, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
+  warlock: { scale: 0.16, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["armRight", "RightArm", "R_Arm", "Weapon_R", "hand_r", "Hand_R"] },
 };
 
 export const ANIMATION_FILES = {
