@@ -28,6 +28,7 @@ export async function POST(request: Request) {
         usernameLower: lower, 
         lastLogin: now, 
         createdAt: now,
+        graphics: 'normal',
       })
       .returning();
     console.log('[player/login] new player', username);
