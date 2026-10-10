@@ -85,7 +85,11 @@ export default function GameClient() {
       }
       if (!r.data.race || !r.data.class_name) { router.replace("/create"); return; }
       setPlayer(r.data);
-      engine = new GameEngine(mountRef.current!, overlayRef.current!, r.data, {
+      if (!mountRef.current || !overlayRef.current) {
+        setError("Error: No se pudo inicializar el contenedor del juego.");
+        return;
+      }
+      engine = new GameEngine(mountRef.current, overlayRef.current, r.data, {
         onSnapshot: (sn) => setSnap(sn),
         onLog: (m, c) => pushLog(m, c),
         onZone: (z) => {

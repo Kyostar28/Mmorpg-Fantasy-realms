@@ -12,7 +12,9 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
   const state = useRef<{ scene: THREE.Scene; model: FBXModel | null; holder: THREE.Group; mixer: THREE.AnimationMixer | null } | null>(null);
 
   useEffect(() => {
-    const el = ref.current!;
+    const el = ref.current;
+    if (!el) return;
+
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(el.clientWidth, el.clientHeight);

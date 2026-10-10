@@ -168,6 +168,7 @@ export class GameEngine {
     const graphics = this.rec.graphics ?? "normal";
     const pixelRatio = graphics === "low" ? 0.3 : graphics === "high" ? window.devicePixelRatio : Math.min(window.devicePixelRatio, 1.5);
     this.renderer.setPixelRatio(pixelRatio);
+    if (!this.container) throw new Error("Container is null");
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.shadowMap.enabled = graphics !== "low";
     this.renderer.shadowMap.type = graphics === "high" ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
@@ -546,7 +547,7 @@ export class GameEngine {
     this.camDist = Math.max(3.5, Math.min(30, this.camDist + e.deltaY * 0.01));
   };
   private onResize = () => {
-    if (!this.renderer) return;
+    if (!this.renderer || !this.container) return;
     const w = this.container.clientWidth, h = this.container.clientHeight;
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
