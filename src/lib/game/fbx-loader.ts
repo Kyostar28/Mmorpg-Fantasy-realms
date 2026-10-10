@@ -67,14 +67,14 @@ export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
   warrior: {
     hand: "right",
     scale: 0.01,
-    position: [0, -0.15, 0], // Baja el arma para sujetarla por el mango
-    rotation: [-Math.PI / 2, 0, 0], // Hoja hacia arriba / frente
+    position: [0, -0.2, 0], // Sube la hoja para que la mano cierre sobre la empuñadura
+    rotation: [0, 0, 0], // Espada vertical hacia arriba
   },
   paladin: {
     hand: "right",
     scale: 0.01,
-    position: [0, -0.15, 0],
-    rotation: [-Math.PI / 2, 0, 0],
+    position: [0, -0.2, 0],
+    rotation: [0, 0, 0], // Espada vertical hacia arriba
     shield: {
       scale: 0.01,
       position: [0, -0.05, 0.05],
@@ -86,10 +86,10 @@ export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
   assassin: {
     hand: "both",
     scale: 0.009,
-    position: [0, -0.08, 0],
-    rotation: [-Math.PI / 2, 0, 0],
-    leftHandPosition: [0, -0.08, 0],
-    leftHandRotation: [-Math.PI / 2, Math.PI, 0], // Espejada para la mano izquierda
+    position: [0, -0.1, 0],
+    rotation: [0, 0, 0], // Agarre normal
+    leftHandPosition: [0, -0.1, 0],
+    leftHandRotation: [0, Math.PI, 0], // Espejada para la mano izquierda
   },
 
   // Cazador (Arco en mano izquierda para disparar con la derecha)
@@ -97,21 +97,21 @@ export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
     hand: "left",
     scale: 0.011,
     position: [0, 0, 0.05],
-    rotation: [0, Math.PI / 2, -Math.PI / 2], // Alineado con el agarre del arco
+    rotation: [0, Math.PI / 2, 0], // Arco vertical sobre Y
   },
 
-  // Mago / Brujo (Báculo en mano derecha, sujeto a 1/3 de la vara)
+  // Mago / Brujo (Báculo en mano derecha, sujeto a la mitad-alta)
   mage: {
     hand: "right",
     scale: 0.009,
-    position: [0, -0.65, 0], // Desplaza el báculo para agarrarlo a la altura cómoda
-    rotation: [-Math.PI / 2, 0, 0],
+    position: [0, -0.6, 0], // Baja el báculo para que la punta mágica sobresalga arriba
+    rotation: [0, 0, 0], // Báculo vertical hacia arriba
   },
   warlock: {
     hand: "right",
     scale: 0.009,
-    position: [0, -0.65, 0],
-    rotation: [-Math.PI / 2, 0, 0],
+    position: [0, -0.6, 0],
+    rotation: [0, 0, 0], // Báculo vertical hacia arriba
   },
 };
 
@@ -122,23 +122,30 @@ export const ANIMATION_FILES = {
 
 /**
  * Función auxiliar para buscar el hueso correcto del slot de mano.
+ * KayKit usa nombres de huesos estilo Mixamo.
  */
 function getBoneSlot(character: THREE.Object3D, side: "r" | "l"): THREE.Bone | null {
-  const targetName = side === "r" ? "handslotr" : "handslotl";
-  const fallbackName = side === "r" ? "handr" : "handl";
+  // Nombres de huesos en orden de prioridad para KayKit/Mixamo
+  const possibleNames = side === "r" 
+    ? ["mixamorig:RightHand", "RightHand", "HandR", "handr", "handslotr"]
+    : ["mixamorig:LeftHand", "LeftHand", "HandL", "handl", "handslotl"];
 
-  let slotBone: THREE.Bone | null = null;
-  let fallbackBone: THREE.Bone | null = null;
+  let foundBone: THREE.Bone | null = null;
 
   character.traverse((child) => {
-    if (child instanceof THREE.Bone) {
+    if (child instanceof THREE.Bone && !foundBone) {
       const cleanName = child.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (cleanName === targetName) slotBone = child;
-      if (cleanName === fallbackName) fallbackBone = child;
+      for (const target of possibleNames) {
+        const cleanTarget = target.toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (cleanName === cleanTarget) {
+          foundBone = child;
+          break;
+        }
+      }
     }
   });
 
-  return slotBone || fallbackBone;
+  return foundBone;
 }
 
 export async function loadClassModel(
