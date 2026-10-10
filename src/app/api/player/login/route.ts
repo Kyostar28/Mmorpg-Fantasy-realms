@@ -1,10 +1,9 @@
-import { eq } from 'drizzle-orm';
+import type { PlayerRecord } from '@/lib/game/data';
 
-import { db } from '@/db';
-import { players } from '@/db/schema';
-import { toRecord } from '@/lib/player-record';
+// Almacenamiento en memoria para simular base de datos (se pierde al reiniciar el servidor)
+const playersStore = new Map<string, PlayerRecord>();
 
-// Username-only login: finds the player by username or creates a new one.
+// Username-only login: simula login sin base de datos usando localStorage del cliente
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as { username?: string };
@@ -12,27 +11,33 @@ export async function POST(request: Request) {
     if (!/^[\p{L}\p{N}_-]{3,16}$/u.test(username)) {
       return Response.json({ ok: false, error: 'El nombre debe tener entre 3 y 16 caracteres (letras, números, _ o -).' }, { status: 400 });
     }
-    const lower = username.toLowerCase();
     const now = new Date().toISOString();
-    const [existing] = await db.select().from(players).where(eq(players.usernameLower, lower)).limit(1);
-    if (existing) {
-      await db.update(players).set({ lastLogin: now }).where(eq(players.id, existing.id));
-      console.log('[player/login] existing player', existing.username);
-      return Response.json({ ok: true, data: toRecord({ ...existing, lastLogin: now }) });
-    }
-    const [created] = await db
-      .insert(players)
-      .values({ 
-        id: crypto.randomUUID(), 
-        username, 
-        usernameLower: lower, 
-        lastLogin: now, 
-        createdAt: now,
-        graphics: 'normal',
-      })
-      .returning();
-    console.log('[player/login] new player', username);
-    return Response.json({ ok: true, data: toRecord(created) });
+    const id = crypto.randomUUID();
+    
+    // Simular creación de jugador sin base de datos
+    const player: PlayerRecord = {
+      _id: id,
+      username,
+      race: undefined,
+      class_name: undefined,
+      level: 1,
+      xp: 0,
+      gold: 10,
+      kills: 0,
+      zone: undefined,
+      pos_x: undefined,
+      pos_z: undefined,
+      inventory: undefined,
+      equipment: undefined,
+      graphics: 'normal',
+      last_login: now,
+    };
+    
+    // Guardar en el store en memoria
+    playersStore.set(id, player);
+    
+    console.log('[player/login] new player (no database)', username);
+    return Response.json({ ok: true, data: player });
   } catch (err) {
     console.error('[player/login] error:', err);
     return Response.json({ ok: false, error: 'Error al procesar el login. Intenta de nuevo.' }, { status: 500 });
