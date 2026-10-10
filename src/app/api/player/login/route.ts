@@ -22,7 +22,15 @@ export async function POST(request: Request) {
     }
     const [created] = await db
       .insert(players)
-      .values({ id: crypto.randomUUID(), username, usernameLower: lower, lastLogin: now, createdAt: now })
+      .values({ 
+        id: crypto.randomUUID(), 
+        username, 
+        usernameLower: lower, 
+        lastLogin: now, 
+        createdAt: now,
+        primaryColor: '#c79c6e',
+        secondaryColor: '#5a3b22',
+      } as any)
       .returning();
     console.log('[player/login] new player', username);
     return Response.json({ ok: true, data: toRecord(created) });
