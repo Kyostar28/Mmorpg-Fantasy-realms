@@ -32,8 +32,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (b.inventory !== undefined) patch.inventory = typeof b.inventory === 'string' ? b.inventory : JSON.stringify(b.inventory);
   if (b.equipment !== undefined) patch.equipment = typeof b.equipment === 'string' ? b.equipment : JSON.stringify(b.equipment);
   if (str(b.graphics) && GRAPHICS.includes(b.graphics as string)) patch.graphics = b.graphics as string;
-  if (str(b.primaryColor)) patch.primaryColor = str(b.primaryColor);
-  if (str(b.secondaryColor)) patch.secondaryColor = str(b.secondaryColor);
+  // if (str(b.primaryColor)) patch.primaryColor = str(b.primaryColor);
+  // if (str(b.secondaryColor)) patch.secondaryColor = str(b.secondaryColor);
   if (!Object.keys(patch).length) return Response.json({ ok: false, error: 'Nada que guardar' }, { status: 400 });
   const [p] = await db.update(players).set(patch).where(eq(players.id, id)).returning();
   if (!p) return Response.json({ ok: false, error: 'Jugador no encontrado' }, { status: 404 });

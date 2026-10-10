@@ -46,7 +46,7 @@ export default function CreatePage() {
     const zone = ZONES[r.startZone];
     console.log("[Create] saving character", race, cls, graphics, primaryColor, secondaryColor);
     const res = await api.put<PlayerRecord>(`/api/player/${session.id}`, {
-      race, class_name: cls, level: 1, xp: 0, gold: 10, zone: zone.name, pos_x: zone.spawn[0], pos_z: zone.spawn[1] + 8, graphics, primaryColor, secondaryColor,
+      race, class_name: cls, level: 1, xp: 0, gold: 10, zone: zone.name, pos_x: zone.spawn[0], pos_z: zone.spawn[1] + 8, graphics, // primaryColor, secondaryColor,
     });
     if (!res.ok) {
       setError(typeof res.error === "string" ? res.error : "No se pudo crear el personaje.");

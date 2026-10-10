@@ -17,8 +17,8 @@ export function toRecord(p: typeof players.$inferSelect) {
     inventory: p.inventory ?? undefined,
     equipment: p.equipment ?? undefined,
     graphics: p.graphics,
-    primaryColor: (p as any).primaryColor ?? undefined,
-    secondaryColor: (p as any).secondaryColor ?? undefined,
+    // primaryColor: (p as any).primaryColor ?? undefined,
+    // secondaryColor: (p as any).secondaryColor ?? undefined,
     last_login: p.lastLogin ?? undefined,
   };
 }
