@@ -30,6 +30,15 @@ export const CLASS_TEXTURES: Record<string, string> = {
   warlock: "/pjs/Characters/fbx/mage_texture.png",
 };
 
+export const CLASS_WEAPONS: Record<string, string> = {
+  warrior: "/pjs/Assets/fbx/sword_1handed.fbx",
+  paladin: "/pjs/Assets/fbx/sword_1handed.fbx",
+  assassin: "/pjs/Assets/fbx/dagger.fbx",
+  hunter: "/pjs/Assets/fbx/bow.fbx",
+  mage: "/pjs/Assets/fbx/staff.fbx",
+  warlock: "/pjs/Assets/fbx/staff.fbx",
+};
+
 export const ANIMATION_FILES = {
   general: "/pjs/Animations/fbx/Rig_Medium/Rig_Medium_General.fbx",
   movement: "/pjs/Animations/fbx/Rig_Medium/Rig_Medium_MovementBasic.fbx",
@@ -40,13 +49,15 @@ export async function loadClassModel(
   primaryColor: string,
   secondaryColor: string
 ): Promise<FBXModel> {
-  const cacheKey = `${classId}_${primaryColor}_${secondaryColor}`;
-  if (modelCache.has(cacheKey)) {
-    return modelCache.get(cacheKey)!;
-  }
+  // Temporarily disable cache to ensure weapons load correctly
+  // const cacheKey = `${classId}_${primaryColor}_${secondaryColor}`;
+  // if (modelCache.has(cacheKey)) {
+  //   return modelCache.get(cacheKey)!;
+  // }
 
   const modelPath = CLASS_MODELS[classId];
   const texturePath = CLASS_TEXTURES[classId];
+  const weaponPath = CLASS_WEAPONS[classId];
 
   if (!modelPath) {
     throw new Error(`No model found for class: ${classId}`);
@@ -92,6 +103,33 @@ export async function loadClassModel(
     }
   }
 
+  // Load and attach weapon
+  if (weaponPath) {
+    try {
+      const weaponObject = await loader.loadAsync(weaponPath);
+      weaponObject.scale.setScalar(0.5); // Scale down weapon
+      
+      // Find the right hand bone to attach weapon
+      object.traverse((child) => {
+        if (child.name.includes("Hand") || child.name.includes("hand") || child.name.includes("R_")) {
+          child.add(weaponObject);
+          weaponObject.position.set(0, 0, 0);
+          weaponObject.rotation.set(0, 0, 0);
+          console.log(`[FBX Loader] Attached weapon to bone: ${child.name}`);
+        }
+      });
+      
+      // If no hand bone found, attach to root
+      if (!weaponObject.parent) {
+        object.add(weaponObject);
+        weaponObject.position.set(0.3, 1, 0.2);
+        console.log("[FBX Loader] Attached weapon to root (no hand bone found)");
+      }
+    } catch (e) {
+      console.warn(`Failed to load weapon ${weaponPath}:`, e);
+    }
+  }
+
   // Apply color customization
   applyColorCustomization(object, primaryColor, secondaryColor);
 
@@ -125,7 +163,7 @@ export async function loadClassModel(
     originalMaterials,
   };
 
-  modelCache.set(cacheKey, model);
+  // modelCache.set(cacheKey, model);
   return model;
 }
 
@@ -143,11 +181,22 @@ function applyColorCustomization(
       
       materials.forEach((mat, index) => {
         if (mat instanceof THREE.MeshStandardMaterial) {
-          // Apply primary color to first material, secondary to others
-          if (index === 0) {
-            mat.color = primary.clone();
+          // If material has a texture, apply color as tint
+          // If no texture, apply solid color
+          if (mat.map) {
+            // Tint the texture with the color
+            if (index === 0) {
+              mat.color = primary.clone();
+            } else {
+              mat.color = secondary.clone();
+            }
           } else {
-            mat.color = secondary.clone();
+            // Solid color for materials without texture
+            if (index === 0) {
+              mat.color = primary.clone();
+            } else {
+              mat.color = secondary.clone();
+            }
           }
           mat.needsUpdate = true;
         }
