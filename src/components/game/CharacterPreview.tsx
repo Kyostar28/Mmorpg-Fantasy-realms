@@ -9,6 +9,7 @@ import { loadClassModel, updateModelColors, playAnimation, disposeModel, type FB
 export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { race: RaceId; cls: ClassId; primaryColor?: string; secondaryColor?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
+  const [rendererReady, setRendererReady] = useState(false);
   const state = useRef<{ scene: THREE.Scene; model: FBXModel | null; holder: THREE.Group; mixer: THREE.AnimationMixer | null } | null>(null);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
     const holder = new THREE.Group();
     scene.add(holder);
     state.current = { scene, model: null, holder, mixer: null };
+    setRendererReady(true);
 
     let raf = 0;
     let t = 0;
@@ -70,13 +72,14 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
       window.removeEventListener("resize", onResize);
       renderer.dispose();
       renderer.domElement.remove();
+      setRendererReady(false);
     };
   }, []);
 
   useEffect(() => {
     const s = state.current;
-    if (!s) return;
-    
+    if (!s || !rendererReady) return;
+
     const loadModel = async () => {
       setLoading(true);
       if (s.model) {
@@ -84,35 +87,42 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
         disposeModel(s.model);
         s.model = null;
       }
-      
+
       try {
         const primColor = primaryColor || "#c79c6e";
         const secColor = secondaryColor || "#5a3b22";
+        console.log("[CharacterPreview] Loading model for class:", cls, "colors:", primColor, secColor);
         const model = await loadClassModel(cls, primColor, secColor);
         s.holder.add(model.root);
         s.model = model;
         s.mixer = model.mixer;
-        
+
         // Scale the model appropriately
         const r = RACES.find((x) => x.id === race)!;
         const scale = 1 / Math.max(1, r.scale * 0.92);
         s.holder.scale.setScalar(scale);
-        
+
         // Play idle animation if available
         playAnimation(model, "Idle", true);
+        console.log("[CharacterPreview] Model loaded successfully");
       } catch (e) {
         console.error("Failed to load FBX model:", e);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
-    
+
     loadModel();
-  }, [race, cls, primaryColor, secondaryColor]);
+  }, [race, cls, primaryColor, secondaryColor, rendererReady]);
 
   useEffect(() => {
     const s = state.current;
     if (!s || !s.model || !primaryColor || !secondaryColor) return;
-    updateModelColors(s.model, primaryColor, secondaryColor);
+    try {
+      updateModelColors(s.model, primaryColor, secondaryColor);
+    } catch (e) {
+      console.error("Failed to update model colors:", e);
+    }
   }, [primaryColor, secondaryColor]);
 
   if (loading) {
