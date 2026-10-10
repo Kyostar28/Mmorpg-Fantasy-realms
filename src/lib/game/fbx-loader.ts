@@ -40,14 +40,14 @@ export const CLASS_WEAPONS: Record<string, string> = {
 };
 
 // Weapon configuration based on actual bone names from the FBX models
-// The KayKit models use bone names like "handr", "handslotr", "Knight_ArmRight"
+// The KayKit models use bone names like "handslot.r", "handslot.l", "head"
 export const WEAPON_CONFIG: Record<string, { scale: number; position: [number, number, number]; rotation: [number, number, number]; bonePatterns: string[] }> = {
-  warrior: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
-  paladin: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
-  assassin: { scale: 0.04, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
-  hunter: { scale: 0.06, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
-  mage: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
-  warlock: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslotr", "handr", "upperarmr", "lowerarmr"] },
+  warrior: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
+  paladin: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "Knight_ArmRight", "upperarmr", "lowerarmr"] },
+  assassin: { scale: 0.04, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "upperarmr", "lowerarmr"] },
+  hunter: { scale: 0.06, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "upperarmr", "lowerarmr"] },
+  mage: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "upperarmr", "lowerarmr"] },
+  warlock: { scale: 0.05, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["handslot.r", "hand.r", "handr", "upperarmr", "lowerarmr"] },
 };
 
 export const ANIMATION_FILES = {
@@ -157,39 +157,25 @@ export async function loadClassModel(
       // Find the right hand bone using class-specific patterns
       // Prioritize bones with "slot" in the name as they're designed for attachments
       let handBone: THREE.Object3D | null = null;
-      const childName = (child: THREE.Object3D) => child.name.toLowerCase();
 
       object.traverse((child) => {
         if (!handBone && child.name) {
-          const lowerName = childName(child);
-          // First try to find a slot bone (handslotr, etc.)
-          if (lowerName.includes('slot')) {
-            for (const pattern of config.bonePatterns) {
-              if (lowerName.includes(pattern.toLowerCase())) {
-                handBone = child;
-                console.log(`[FBX Loader] Found slot bone for ${classId}: ${child.name} (pattern: ${pattern})`);
-                break;
-              }
+          for (const pattern of config.bonePatterns) {
+            // Try exact match first (for "handslot.r", "handslot.l", "head")
+            if (child.name === pattern) {
+              handBone = child;
+              console.log(`[FBX Loader] Found exact match bone for ${classId}: ${child.name} (pattern: ${pattern})`);
+              break;
+            }
+            // Then try case-insensitive match with includes
+            if (child.name.toLowerCase().includes(pattern.toLowerCase())) {
+              handBone = child;
+              console.log(`[FBX Loader] Found matching bone for ${classId}: ${child.name} (pattern: ${pattern})`);
+              break;
             }
           }
         }
       });
-
-      // If no slot bone found, try regular hand bones
-      if (!handBone) {
-        object.traverse((child) => {
-          if (!handBone && child.name) {
-            const lowerName = childName(child);
-            for (const pattern of config.bonePatterns) {
-              if (lowerName.includes(pattern.toLowerCase())) {
-                handBone = child;
-                console.log(`[FBX Loader] Found hand bone for ${classId}: ${child.name} (pattern: ${pattern})`);
-                break;
-              }
-            }
-          }
-        });
-      }
       
       if (handBone) {
         handBone.add(weaponObject);
