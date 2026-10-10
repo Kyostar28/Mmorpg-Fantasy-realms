@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { CLASSES, RACES, type ClassId, type RaceId } from "@/lib/game/data";
-import { loadClassModel, updateModelColors, playAnimation, disposeModel, type FBXModel } from "@/lib/game/fbx-loader";
+import { loadClassModel, updateModelColors, setAnimationByState, disposeModel, type FBXModel } from "@/lib/game/fbx-loader";
 
 // Live 3D preview of the selected race + class, with idle/attack/cast animations.
 export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { race: RaceId; cls: ClassId; primaryColor?: string; secondaryColor?: string }) {
@@ -102,14 +102,9 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
         const scale = 1 / Math.max(1, r.scale * 0.92);
         s.holder.scale.setScalar(scale);
 
-        // Play idle animation - use Idle_A from the actual animation files
-        const idleAnim = model.animations.get("Idle_A") || model.animations.get("Idle_B");
-        if (idleAnim) {
-          playAnimation(model, idleAnim.name, true);
-          console.log("[CharacterPreview] Playing idle animation:", idleAnim.name);
-        } else {
-          console.warn("[CharacterPreview] No idle animation found");
-        }
+        // Play idle animation using the new state-based system
+        setAnimationByState(model, "idle");
+        console.log("[CharacterPreview] Playing idle animation");
         console.log("[CharacterPreview] Model loaded successfully");
       } catch (e) {
         console.error("Failed to load FBX model:", e);

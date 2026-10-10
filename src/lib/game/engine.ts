@@ -10,7 +10,7 @@ import {
 } from "./data";
 import { BOSS_SPOTS, LAKES, heightAt, isBlockedForProps, mulberry32, zoneWeights } from "./terrain";
 import { AnimState, Model, buildMobModel, buildPlayerModel, buildVendor } from "./models";
-import { loadClassModel, type FBXModel } from "./fbx-loader";
+import { loadClassModel, setAnimationByState, type FBXModel } from "./fbx-loader";
 import { Collider, buildGrass, buildSky, buildTerrain, buildTowns, buildVegetation, buildWater } from "./world";
 import { Particles, Rings, makeBeam } from "./fx";
 
@@ -334,53 +334,23 @@ export class GameEngine {
           // Update FBX animation mixer
           if (this.fbxModel) {
             this.fbxModel.mixer.update(dt);
-            
-            // Play appropriate animation based on state
+
+            // Determine animation state
+            let animState = "idle";
             if (s.dead) {
-              // Death animation
-              const deathAnim = this.fbxModel.animations.get("Death_A");
-              if (deathAnim && this.fbxModel.mixer.clipAction(deathAnim).enabled === false) {
-                this.fbxModel.mixer.stopAllAction();
-                const action = this.fbxModel.mixer.clipAction(deathAnim);
-                action.loop = THREE.LoopOnce;
-                action.clampWhenFinished = true;
-                action.play();
-              }
+              animState = "death";
+            } else if (s.action === "hit") {
+              animState = "hit";
             } else if (s.action === "attack") {
-              // Attack animation
-              const attackAnim = this.fbxModel.animations.get("Attack_A") || this.fbxModel.animations.get("Attack_B");
-              if (attackAnim) {
-                const action = this.fbxModel.mixer.clipAction(attackAnim);
-                if (!action.enabled) {
-                  this.fbxModel.mixer.stopAllAction();
-                  action.loop = THREE.LoopOnce;
-                  action.clampWhenFinished = true;
-                  action.play();
-                }
-              }
+              animState = "attack";
+            } else if (s.action === "cast" || s.action === "channel") {
+              animState = "attack"; // Use attack animation for casting until we have magic animations
             } else if (s.speed > 0.1) {
-              // Run animation
-              const runAnim = this.fbxModel.animations.get("Run_A") || this.fbxModel.animations.get("Run_B");
-              if (runAnim) {
-                const action = this.fbxModel.mixer.clipAction(runAnim);
-                if (!action.enabled) {
-                  this.fbxModel.mixer.stopAllAction();
-                  action.loop = THREE.LoopRepeat;
-                  action.play();
-                }
-              }
-            } else {
-              // Idle animation
-              const idleAnim = this.fbxModel.animations.get("Idle_A") || this.fbxModel.animations.get("Idle_B");
-              if (idleAnim) {
-                const action = this.fbxModel.mixer.clipAction(idleAnim);
-                if (!action.enabled) {
-                  this.fbxModel.mixer.stopAllAction();
-                  action.loop = THREE.LoopRepeat;
-                  action.play();
-                }
-              }
+              animState = s.speed > 0.7 ? "run" : "walk";
             }
+
+            // Set animation based on state
+            setAnimationByState(this.fbxModel, animState, s.speed);
           }
         },
         dispose: () => {
@@ -985,6 +955,9 @@ export class GameEngine {
     this.floatText(this.pChest().add(new THREE.Vector3(0, 0.8, 0)), `-${dmg}`, "#ff3b3b", 20);
     this.fx.burst(this.pChest(), "#aa0000", 10, 3, 0.35, 0.5, 8);
     if (this.casting && Math.random() < 0.3) this.casting.t = Math.max(0, this.casting.t - 0.3); // pushback
+    // Play hit animation
+    this.anim.action = "hit";
+    this.anim.actionT = 0;
     if (this.hp <= 0) this.die();
   }
 
@@ -1313,8 +1286,9 @@ export class GameEngine {
     }
     if (this.anim.action) {
       this.anim.actionT += dt;
-      if (this.anim.action !== "channel" && this.anim.actionT > 0.55) this.anim.action = null;
+      if (this.anim.action !== "channel" && this.anim.action !== "hit" && this.anim.actionT > 0.55) this.anim.action = null;
       if (this.anim.action === "channel" && !this.casting) this.anim.action = null;
+      if (this.anim.action === "hit" && this.anim.actionT > 0.4) this.anim.action = null;
     }
     if (this.anim.dead) this.anim.deadT += dt;
 
