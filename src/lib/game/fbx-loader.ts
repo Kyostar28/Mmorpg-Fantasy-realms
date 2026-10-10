@@ -39,6 +39,16 @@ export const CLASS_WEAPONS: Record<string, string> = {
   warlock: "/pjs/Assets/fbx/staff.fbx", // Using staff for now (no skullstaff in assets)
 };
 
+// Precise weapon configuration for each class - will be adjusted based on actual bone names discovered
+export const WEAPON_CONFIG: Record<string, { scale: number; position: [number, number, number]; rotation: [number, number, number]; bonePatterns: string[] }> = {
+  warrior: { scale: 0.08, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
+  paladin: { scale: 0.08, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
+  assassin: { scale: 0.06, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
+  hunter: { scale: 0.1, position: [0, 0, 0], rotation: [0, Math.PI / 2, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
+  mage: { scale: 0.09, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
+  warlock: { scale: 0.09, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R", "Weapon_R", "mixamorig:RightHand"] },
+};
+
 export const ANIMATION_FILES = {
   general: "/pjs/Animations/fbx/Rig_Medium/Rig_Medium_General.fbx",
   movement: "/pjs/Animations/fbx/Rig_Medium/Rig_Medium_MovementBasic.fbx",
@@ -67,6 +77,15 @@ export async function loadClassModel(
   const object = await loader.loadAsync(modelPath);
   const root = new THREE.Group();
   root.add(object);
+
+  // Log all bone names for debugging
+  const boneNames: string[] = [];
+  object.traverse((child) => {
+    if (child.name) {
+      boneNames.push(child.name);
+    }
+  });
+  console.log(`[FBX Loader] All bones in ${classId} model:`, boneNames);
 
   // Store original materials
   const originalMaterials = new Map<THREE.Mesh, THREE.Material>();
@@ -108,18 +127,20 @@ export async function loadClassModel(
   if (weaponPath) {
     try {
       const weaponObject = await loader.loadAsync(weaponPath);
-      weaponObject.scale.setScalar(0.5); // Scale down weapon
       
-      // Find the right hand bone to attach weapon - try multiple patterns
+      // Get precise configuration for this class
+      const config = WEAPON_CONFIG[classId] || { scale: 0.15, position: [0, 0, 0], rotation: [0, 0, 0], bonePatterns: ["R_Hand", "RightHand", "Hand_R"] };
+      weaponObject.scale.setScalar(config.scale);
+      
+      // Find the right hand bone using class-specific patterns
       let handBone: THREE.Object3D | null = null;
-      const handPatterns = ["Hand", "hand", "R_", "Right", "right", "Weapon", "weapon", "HandR", "RHand"];
       
       object.traverse((child) => {
         if (!handBone) {
-          for (const pattern of handPatterns) {
-            if (child.name.includes(pattern)) {
+          for (const pattern of config.bonePatterns) {
+            if (child.name === pattern || child.name.includes(pattern)) {
               handBone = child;
-              console.log(`[FBX Loader] Found hand bone: ${child.name} (pattern: ${pattern})`);
+              console.log(`[FBX Loader] Found hand bone for ${classId}: ${child.name} (pattern: ${pattern})`);
               break;
             }
           }
@@ -128,15 +149,15 @@ export async function loadClassModel(
       
       if (handBone) {
         handBone.add(weaponObject);
-        weaponObject.position.set(0, 0, 0);
-        weaponObject.rotation.set(0, 0, 0);
-        console.log(`[FBX Loader] Attached weapon to bone: ${handBone.name}`);
+        weaponObject.position.set(...config.position);
+        weaponObject.rotation.set(...config.rotation);
+        console.log(`[FBX Loader] Attached weapon to bone: ${handBone.name} with scale ${config.scale}`);
       } else {
-        // If no hand bone found, attach to root but make it visible
+        // If no hand bone found, attach to root with fallback position
+        console.warn(`[FBX Loader] No hand bone found for ${classId}, using fallback position`);
         object.add(weaponObject);
-        weaponObject.position.set(0.25, 1.15, 0.25);
+        weaponObject.position.set(0.3, 1.2, 0.3);
         weaponObject.rotation.set(0, Math.PI / 4, 0);
-        console.log("[FBX Loader] Attached weapon to root (no hand bone found), position adjusted for visibility");
       }
     } catch (e) {
       console.error(`Failed to load weapon ${weaponPath}:`, e);
