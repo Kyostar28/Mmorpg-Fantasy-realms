@@ -102,7 +102,6 @@ export async function loadClassModel(
   // Load animations
   try {
     const generalAnim = await loader.loadAsync(ANIMATION_FILES.general);
-    console.log("[FBX Loader] General animations:", generalAnim.animations.map(a => a.name));
     generalAnim.animations.forEach((clip) => {
       animations.set(clip.name, clip);
     });
@@ -112,15 +111,12 @@ export async function loadClassModel(
 
   try {
     const movementAnim = await loader.loadAsync(ANIMATION_FILES.movement);
-    console.log("[FBX Loader] Movement animations:", movementAnim.animations.map(a => a.name));
     movementAnim.animations.forEach((clip) => {
       animations.set(clip.name, clip);
     });
   } catch (e) {
     console.warn("Failed to load movement animations:", e);
   }
-
-  console.log("[FBX Loader] All available animations:", Array.from(animations.keys()));
 
   const model: FBXModel = {
     root,

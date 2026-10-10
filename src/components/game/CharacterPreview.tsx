@@ -102,28 +102,13 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
         const scale = 1 / Math.max(1, r.scale * 0.92);
         s.holder.scale.setScalar(scale);
 
-        // Play idle animation - check available animations first
-        console.log("[CharacterPreview] Available animations:", Array.from(model.animations.keys()));
-        
-        // Try common idle animation names
-        const idleNames = ["Idle", "Stand", "Standing", "Idle_01", "Idle_02", "Wait", "Idle_Rest"];
-        let played = false;
-        for (const name of idleNames) {
-          if (model.animations.has(name)) {
-            playAnimation(model, name, true);
-            console.log("[CharacterPreview] Playing animation:", name);
-            played = true;
-            break;
-          }
-        }
-        
-        // If no specific idle animation found, use the first available
-        if (!played) {
-          const firstAnim = model.animations.keys().next().value;
-          if (firstAnim) {
-            playAnimation(model, firstAnim, true);
-            console.log("[CharacterPreview] Playing first available animation:", firstAnim);
-          }
+        // Play idle animation - use Idle_A from the actual animation files
+        const idleAnim = model.animations.get("Idle_A") || model.animations.get("Idle_B");
+        if (idleAnim) {
+          playAnimation(model, idleAnim.name, true);
+          console.log("[CharacterPreview] Playing idle animation:", idleAnim.name);
+        } else {
+          console.warn("[CharacterPreview] No idle animation found");
         }
         console.log("[CharacterPreview] Model loaded successfully");
       } catch (e) {
