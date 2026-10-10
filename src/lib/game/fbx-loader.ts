@@ -78,14 +78,27 @@ export async function loadClassModel(
   const root = new THREE.Group();
   root.add(object);
 
-  // Log all bone names for debugging
+  // Log all bone names for debugging - COMPLETE LIST
   const boneNames: string[] = [];
+  const boneDetails: { name: string; type: string; parent: string }[] = [];
   object.traverse((child) => {
     if (child.name) {
       boneNames.push(child.name);
+      boneDetails.push({
+        name: child.name,
+        type: child.type,
+        parent: child.parent?.name || 'none'
+      });
     }
   });
-  console.log(`[FBX Loader] All bones in ${classId} model:`, boneNames);
+  console.log(`\n========== ${classId.toUpperCase()} MODEL BONES ==========`);
+  console.log(`Total bones: ${boneNames.length}`);
+  console.log('ALL BONES:', boneNames);
+  console.log('BONE DETAILS:', boneDetails);
+  console.log('HAND BONES:', boneNames.filter(n => n.toLowerCase().includes('hand')));
+  console.log('WEAPON BONES:', boneNames.filter(n => n.toLowerCase().includes('weapon')));
+  console.log('RIGHT BONES:', boneNames.filter(n => n.toLowerCase().includes('right') || n.includes('R_')));
+  console.log('============================================================\n');
 
   // Store original materials
   const originalMaterials = new Map<THREE.Mesh, THREE.Material>();
