@@ -91,13 +91,21 @@ export async function loadClassModel(
       });
     }
   });
+  const handBones = boneNames.filter(n => n.toLowerCase().includes('hand'));
+  const weaponBones = boneNames.filter(n => n.toLowerCase().includes('weapon'));
+  const rightBones = boneNames.filter(n => n.toLowerCase().includes('right') || n.includes('R_'));
+  const armBones = boneNames.filter(n => n.toLowerCase().includes('arm'));
+  
   console.log(`\n========== ${classId.toUpperCase()} MODEL BONES ==========`);
   console.log(`Total bones: ${boneNames.length}`);
-  console.log('ALL BONES:', boneNames);
-  console.log('BONE DETAILS:', boneDetails);
-  console.log('HAND BONES:', boneNames.filter(n => n.toLowerCase().includes('hand')));
-  console.log('WEAPON BONES:', boneNames.filter(n => n.toLowerCase().includes('weapon')));
-  console.log('RIGHT BONES:', boneNames.filter(n => n.toLowerCase().includes('right') || n.includes('R_')));
+  console.log('\n--- HAND BONES (36) ---');
+  handBones.forEach((b, i) => console.log(`  ${i}: ${b}`));
+  console.log('\n--- ARM BONES ---');
+  armBones.forEach((b, i) => console.log(`  ${i}: ${b}`));
+  console.log('\n--- RIGHT BONES ---');
+  rightBones.forEach((b, i) => console.log(`  ${i}: ${b}`));
+  console.log('\n--- WEAPON BONES ---');
+  console.log(weaponBones.length > 0 ? weaponBones : 'No weapon bones found');
   console.log('============================================================\n');
 
   // Store original materials
