@@ -125,16 +125,16 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
     }
   }, [primaryColor, secondaryColor]);
 
-  if (loading) {
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <div className="text-center">
-          <div className="mb-2 h-8 w-8 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-          <p className="text-xs text-stone-400">Cargando modelo...</p>
+  return (
+    <div ref={ref} className="h-full w-full relative">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#06080b]/80 z-10">
+          <div className="text-center">
+            <div className="mb-2 h-8 w-8 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+            <p className="text-xs text-stone-400">Cargando modelo...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  return <div ref={ref} className="h-full w-full" />;
+      )}
+    </div>
+  );
 }
