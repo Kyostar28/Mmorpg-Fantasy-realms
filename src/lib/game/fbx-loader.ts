@@ -18,13 +18,13 @@ export const CLASS_MODELS: Record<string, string> = {
   assassin: "/pjs/Characters/fbx/Rogue_Hooded.fbx",
   hunter: "/pjs/Characters/fbx/Ranger.fbx",
   mage: "/pjs/Characters/fbx/Mage.fbx",
-  warlock: "/pjs/Characters/fbx/Mage.fbx", // Temporal hasta tener el modelo
+  warlock: "/pjs/Characters/fbx/Mage.fbx", // Temporal hasta tener el modelo específico
 };
 
 export const CLASS_TEXTURES: Record<string, string> = {
   warrior: "/pjs/Characters/fbx/knight_texture.png",
   paladin: "/pjs/Characters/fbx/knight_texture.png",
-  assassin: "/pjs/Characters/fbx/rogue_texture.png",
+  assassin: "/pjs/Characters/fbx/rogue_texture.png", // Rogue_Hooded uses rogue texture
   hunter: "/pjs/Characters/fbx/ranger_texture.png",
   mage: "/pjs/Characters/fbx/mage_texture.png",
   warlock: "/pjs/Characters/fbx/mage_texture.png",
@@ -32,11 +32,11 @@ export const CLASS_TEXTURES: Record<string, string> = {
 
 export const CLASS_WEAPONS: Record<string, string> = {
   warrior: "/pjs/Assets/fbx/sword_1handed.fbx",
-  paladin: "/pjs/Assets/fbx/sword_1handed.fbx",
+  paladin: "/pjs/Assets/fbx/sword_1handed.fbx", // Using sword for now (no hammer in assets)
   assassin: "/pjs/Assets/fbx/dagger.fbx",
   hunter: "/pjs/Assets/fbx/bow.fbx",
   mage: "/pjs/Assets/fbx/staff.fbx",
-  warlock: "/pjs/Assets/fbx/staff.fbx",
+  warlock: "/pjs/Assets/fbx/staff.fbx", // Using staff for now (no skullstaff in assets)
 };
 
 export const ANIMATION_FILES = {
@@ -98,6 +98,7 @@ export async function loadClassModel(
           }
         }
       });
+      console.log(`[FBX Loader] Applied texture: ${texturePath}`);
     } catch (e) {
       console.warn(`Failed to load texture ${texturePath}:`, e);
     }
@@ -109,24 +110,36 @@ export async function loadClassModel(
       const weaponObject = await loader.loadAsync(weaponPath);
       weaponObject.scale.setScalar(0.5); // Scale down weapon
       
-      // Find the right hand bone to attach weapon
+      // Find the right hand bone to attach weapon - try multiple patterns
+      let handBone: THREE.Object3D | null = null;
+      const handPatterns = ["Hand", "hand", "R_", "Right", "right", "Weapon", "weapon", "HandR", "RHand"];
+      
       object.traverse((child) => {
-        if (child.name.includes("Hand") || child.name.includes("hand") || child.name.includes("R_")) {
-          child.add(weaponObject);
-          weaponObject.position.set(0, 0, 0);
-          weaponObject.rotation.set(0, 0, 0);
-          console.log(`[FBX Loader] Attached weapon to bone: ${child.name}`);
+        if (!handBone) {
+          for (const pattern of handPatterns) {
+            if (child.name.includes(pattern)) {
+              handBone = child;
+              console.log(`[FBX Loader] Found hand bone: ${child.name} (pattern: ${pattern})`);
+              break;
+            }
+          }
         }
       });
       
-      // If no hand bone found, attach to root
-      if (!weaponObject.parent) {
+      if (handBone) {
+        handBone.add(weaponObject);
+        weaponObject.position.set(0, 0, 0);
+        weaponObject.rotation.set(0, 0, 0);
+        console.log(`[FBX Loader] Attached weapon to bone: ${handBone.name}`);
+      } else {
+        // If no hand bone found, attach to root but make it visible
         object.add(weaponObject);
-        weaponObject.position.set(0.3, 1, 0.2);
-        console.log("[FBX Loader] Attached weapon to root (no hand bone found)");
+        weaponObject.position.set(0.25, 1.15, 0.25);
+        weaponObject.rotation.set(0, Math.PI / 4, 0);
+        console.log("[FBX Loader] Attached weapon to root (no hand bone found), position adjusted for visibility");
       }
     } catch (e) {
-      console.warn(`Failed to load weapon ${weaponPath}:`, e);
+      console.error(`Failed to load weapon ${weaponPath}:`, e);
     }
   }
 

@@ -43,7 +43,7 @@ export default function CreatePage() {
     if (!session) return;
     setSaving(true);
     setError(null);
-    const zone = ZONES[r.startZone];
+    const zone = ZONES[1]; // All classes spawn in zone 1 (Valle de Ventormenta)
     console.log("[Create] saving character", race, cls, graphics, primaryColor, secondaryColor);
     const res = await api.put<PlayerRecord>(`/api/player/${session.id}`, {
       race, class_name: cls, level: 1, xp: 0, gold: 10, zone: zone.name, pos_x: zone.spawn[0], pos_z: zone.spawn[1] + 8, graphics,
@@ -124,7 +124,7 @@ export default function CreatePage() {
                   {Object.entries(r.bonus).map(([k, v]) => `+${v} ${({ str: "Fuerza", agi: "Agilidad", int: "Intelecto", sta: "Aguante" } as Record<string, string>)[k] ?? k}`).join(" · ")}
                 </p>
                 <p className="mt-3 font-display text-xs tracking-widest text-amber-400/80">ZONA INICIAL</p>
-                <p className="mt-1 text-stone-200">{ZONES[r.startZone].name}</p>
+                <p className="mt-1 text-stone-200">{ZONES[1].name}</p>
               </div>
               <button onClick={() => setStep(2)} className="mt-auto rounded bg-gradient-to-b from-amber-500 to-amber-700 px-6 py-3 font-display text-lg font-bold tracking-widest text-black transition hover:brightness-110">
                 SIGUIENTE

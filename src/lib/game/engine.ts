@@ -10,6 +10,7 @@ import {
 } from "./data";
 import { BOSS_SPOTS, LAKES, heightAt, isBlockedForProps, mulberry32, zoneWeights } from "./terrain";
 import { AnimState, Model, buildMobModel, buildPlayerModel, buildVendor } from "./models";
+import { loadClassModel, type FBXModel } from "./fbx-loader";
 import { Collider, buildGrass, buildSky, buildTerrain, buildTowns, buildVegetation, buildWater } from "./world";
 import { Particles, Rings, makeBeam } from "./fx";
 
@@ -95,6 +96,7 @@ export class GameEngine {
   private race: RaceDef;
   private cls: ClassDef;
   private model!: Model;
+  private fbxModel: FBXModel | null = null;
   private pObj = new THREE.Group();
   private pos = new THREE.Vector3();
   private vy = 0;
@@ -222,7 +224,7 @@ export class GameEngine {
     this.spawnVendors();
 
     await step("Forjando a tu héroe…", 90);
-    this.setupPlayer();
+    await this.setupPlayer();
 
     // post-processing
     this.composer = new EffectComposer(this.renderer);
@@ -280,7 +282,7 @@ export class GameEngine {
   // =========================================================================
   // Player
   // =========================================================================
-  private setupPlayer() {
+  private async setupPlayer() {
     this.level = this.rec.level ?? 1;
     this.xp = this.rec.xp ?? 0;
     this.gold = this.rec.gold ?? 0;
@@ -306,12 +308,93 @@ export class GameEngine {
     this.hp = this.stats.maxHp;
     this.res = this.cls.resource === "Ira" ? 0 : this.stats.maxRes;
 
-    const zone = ZONES[this.race.startZone];
+    // Use saved position if available, otherwise spawn in zone 1 (Valle de Ventormenta)
+    const zone = ZONES[1];
     const x = this.rec.pos_x ?? zone.spawn[0];
     const z = this.rec.pos_z ?? zone.spawn[1] + 8;
     this.pos.set(x, heightAt(x, z), z);
-    this.model = buildPlayerModel(this.race, this.cls);
-    this.pObj.add(this.model.root);
+
+    // Load FBX model for player
+    try {
+      const primaryColor = this.race.skin;
+      const secondaryColor = this.cls.armor;
+      this.fbxModel = await loadClassModel(this.cls.id, primaryColor, secondaryColor);
+      this.pObj.add(this.fbxModel.root);
+      
+      // Scale the model based on race
+      const scale = this.race.scale * 0.92;
+      this.fbxModel.root.scale.setScalar(scale);
+      
+      // Store animation mixer reference
+      this.model = {
+        root: this.fbxModel.root,
+        height: 1.95 * scale,
+        radius: 0.6 * scale,
+        animate: (dt: number, t: number, s: AnimState) => {
+          // Update FBX animation mixer
+          if (this.fbxModel) {
+            this.fbxModel.mixer.update(dt);
+            
+            // Play appropriate animation based on state
+            if (s.dead) {
+              // Death animation
+              const deathAnim = this.fbxModel.animations.get("Death_A");
+              if (deathAnim && this.fbxModel.mixer.clipAction(deathAnim).enabled === false) {
+                this.fbxModel.mixer.stopAllAction();
+                const action = this.fbxModel.mixer.clipAction(deathAnim);
+                action.loop = THREE.LoopOnce;
+                action.clampWhenFinished = true;
+                action.play();
+              }
+            } else if (s.action === "attack") {
+              // Attack animation
+              const attackAnim = this.fbxModel.animations.get("Attack_A") || this.fbxModel.animations.get("Attack_B");
+              if (attackAnim) {
+                const action = this.fbxModel.mixer.clipAction(attackAnim);
+                if (!action.enabled) {
+                  this.fbxModel.mixer.stopAllAction();
+                  action.loop = THREE.LoopOnce;
+                  action.clampWhenFinished = true;
+                  action.play();
+                }
+              }
+            } else if (s.speed > 0.1) {
+              // Run animation
+              const runAnim = this.fbxModel.animations.get("Run_A") || this.fbxModel.animations.get("Run_B");
+              if (runAnim) {
+                const action = this.fbxModel.mixer.clipAction(runAnim);
+                if (!action.enabled) {
+                  this.fbxModel.mixer.stopAllAction();
+                  action.loop = THREE.LoopRepeat;
+                  action.play();
+                }
+              }
+            } else {
+              // Idle animation
+              const idleAnim = this.fbxModel.animations.get("Idle_A") || this.fbxModel.animations.get("Idle_B");
+              if (idleAnim) {
+                const action = this.fbxModel.mixer.clipAction(idleAnim);
+                if (!action.enabled) {
+                  this.fbxModel.mixer.stopAllAction();
+                  action.loop = THREE.LoopRepeat;
+                  action.play();
+                }
+              }
+            }
+          }
+        },
+        dispose: () => {
+          if (this.fbxModel) {
+            // Don't dispose FBX model here as it's managed by the loader
+          }
+        },
+      };
+    } catch (e) {
+      console.error("[Engine] Failed to load FBX model, falling back to procedural:", e);
+      this.model = buildPlayerModel(this.race, this.cls);
+      this.pObj.add(this.model.root);
+    }
+
     this.scene.add(this.pObj);
     this.camYaw = Math.PI; // look toward +z... start facing north-ish
     this.facing = 0;
@@ -1635,6 +1718,21 @@ export class GameEngine {
       const m = o as THREE.Mesh;
       m.geometry?.dispose?.();
     });
+    // Dispose FBX model if loaded
+    if (this.fbxModel) {
+      this.fbxModel.mixer.stopAllAction();
+      this.fbxModel.root.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((mat) => mat.dispose());
+          } else {
+            child.material.dispose();
+          }
+          child.geometry.dispose();
+        }
+      });
+      this.fbxModel.root.clear();
+    }
   }
 }
 
