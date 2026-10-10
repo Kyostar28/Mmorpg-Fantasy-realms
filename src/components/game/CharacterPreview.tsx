@@ -102,8 +102,26 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
         const scale = 1 / Math.max(1, r.scale * 0.92);
         s.holder.scale.setScalar(scale);
 
-        // Play idle animation if available
-        playAnimation(model, "Idle", true);
+        // Play idle animation if available - try multiple names
+        const idleNames = ["Idle", "Stand", "Standing", "Idle_01", "Idle_02", "Wait"];
+        let played = false;
+        for (const name of idleNames) {
+          if (model.animations.has(name)) {
+            playAnimation(model, name, true);
+            console.log("[CharacterPreview] Playing animation:", name);
+            played = true;
+            break;
+          }
+        }
+        if (!played) {
+          console.warn("[CharacterPreview] No idle animation found. Available animations:", Array.from(model.animations.keys()));
+          // If no idle animation, play the first available animation
+          const firstAnim = model.animations.keys().next().value;
+          if (firstAnim) {
+            playAnimation(model, firstAnim, true);
+            console.log("[CharacterPreview] Playing first available animation:", firstAnim);
+          }
+        }
         console.log("[CharacterPreview] Model loaded successfully");
       } catch (e) {
         console.error("Failed to load FBX model:", e);
