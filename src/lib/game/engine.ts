@@ -316,8 +316,8 @@ export class GameEngine {
 
     // Load FBX model for player
     try {
-      const primaryColor = this.player.primaryColor || this.cls.color || this.race.skin;
-      const secondaryColor = this.player.secondaryColor || this.cls.armor;
+      const primaryColor = this.rec.primaryColor || this.cls.color || this.race.skin;
+      const secondaryColor = this.rec.secondaryColor || this.cls.armor;
       this.fbxModel = await loadClassModel(this.cls.id, primaryColor, secondaryColor);
       this.pObj.add(this.fbxModel.root);
       
