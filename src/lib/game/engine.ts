@@ -316,8 +316,8 @@ export class GameEngine {
 
     // Load FBX model for player
     try {
-      const primaryColor = this.race.skin;
-      const secondaryColor = this.cls.armor;
+      const primaryColor = this.player.primaryColor || this.cls.color || this.race.skin;
+      const secondaryColor = this.player.secondaryColor || this.cls.armor;
       this.fbxModel = await loadClassModel(this.cls.id, primaryColor, secondaryColor);
       this.pObj.add(this.fbxModel.root);
       
@@ -343,8 +343,10 @@ export class GameEngine {
               animState = "hit";
             } else if (s.action === "attack") {
               animState = "attack";
-            } else if (s.action === "cast" || s.action === "channel") {
-              animState = "attack"; // Use attack animation for casting until we have magic animations
+            } else if (s.action === "cast") {
+              animState = "cast";
+            } else if (s.action === "channel") {
+              animState = "channel";
             } else if (s.speed > 0.1) {
               animState = s.speed > 0.7 ? "run" : "walk";
             }

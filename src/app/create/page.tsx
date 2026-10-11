@@ -31,28 +31,42 @@ export default function CreatePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const s = getSession();
-    if (!s) { router.replace("/"); return; }
+    let s = getSession();
+    if (!s) {
+      s = { id: crypto.randomUUID(), username: "Aventurero" };
+      localStorage.setItem("fr_player", JSON.stringify(s));
+    }
     setSess(s);
-  }, [router]);
+  }, []);
 
   const r = RACES.find((x) => x.id === race)!;
   const c = CLASSES.find((x) => x.id === cls)!;
 
   const create = async () => {
-    if (!session) return;
+    const activeSession = session || getSession() || { id: crypto.randomUUID(), username: "Aventurero" };
     setSaving(true);
     setError(null);
     const zone = ZONES[1]; // All classes spawn in zone 1 (Valle de Ventormenta)
     console.log("[Create] saving character", race, cls, graphics, primaryColor, secondaryColor);
-    const res = await api.put<PlayerRecord>(`/api/player/${session.id}`, {
-      race, class_name: cls, level: 1, xp: 0, gold: 10, zone: zone.name, pos_x: zone.spawn[0], pos_z: zone.spawn[1] + 8, graphics,
-    });
-    if (!res.ok) {
-      setError(typeof res.error === "string" ? res.error : "No se pudo crear el personaje.");
-      setSaving(false);
-      return;
+    try {
+      await api.put<PlayerRecord>(`/api/player/${activeSession.id}`, {
+        username: activeSession.username,
+        race,
+        class_name: cls,
+        level: 1,
+        xp: 0,
+        gold: 10,
+        zone: zone.name,
+        pos_x: zone.spawn[0],
+        pos_z: zone.spawn[1] + 8,
+        graphics,
+        primaryColor,
+        secondaryColor,
+      });
+    } catch (e) {
+      console.warn("[Create] Server sync fallback", e);
     }
+    localStorage.setItem("fr_player", JSON.stringify(activeSession));
     router.push("/play");
   };
 

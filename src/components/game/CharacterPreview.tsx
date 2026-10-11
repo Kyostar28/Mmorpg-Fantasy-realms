@@ -16,12 +16,20 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
     const el = ref.current;
     if (!el) return;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.setSize(el.clientWidth, el.clientHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    el.appendChild(renderer.domElement);
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(typeof window !== "undefined" ? window.devicePixelRatio : 1, 2));
+      renderer.setSize(el.clientWidth, el.clientHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      el.appendChild(renderer.domElement);
+    } catch (err) {
+      console.warn("[CharacterPreview] WebGL unavailable:", err);
+      setLoading(false);
+      return;
+    }
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(32, el.clientWidth / el.clientHeight, 0.1, 100);
     camera.position.set(0, 1.6, 6.2);
@@ -58,10 +66,13 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
       t += dt;
       holder.rotation.y = Math.sin(t * 0.4) * 0.6 + 0.2;
       state.current?.mixer?.update(dt);
-      renderer.render(scene, camera);
+      try {
+        renderer.render(scene, camera);
+      } catch {}
     };
     loop();
     const onResize = () => {
+      if (!el) return;
       renderer.setSize(el.clientWidth, el.clientHeight);
       camera.aspect = el.clientWidth / el.clientHeight;
       camera.updateProjectionMatrix();
@@ -70,8 +81,10 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
-      renderer.dispose();
-      renderer.domElement.remove();
+      try {
+        renderer.dispose();
+        renderer.domElement.remove();
+      } catch {}
       setRendererReady(false);
     };
   }, []);
@@ -125,7 +138,7 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
     };
 
     loadModel();
-  }, [race, cls, primaryColor, secondaryColor, rendererReady]);
+  }, [race, cls, rendererReady]);
 
   useEffect(() => {
     const s = state.current;

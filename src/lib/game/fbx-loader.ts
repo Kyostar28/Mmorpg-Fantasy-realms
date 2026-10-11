@@ -63,55 +63,54 @@ export interface WeaponSlotConfig {
 }
 
 export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
-  // Guerrero / Paladín (Espada en mano derecha)
+  // Guerrero (Espada de 1 mano en mano derecha)
   warrior: {
     hand: "right",
-    scale: 0.01,
-    position: [0, -0.2, 0], // Sube la hoja para que la mano cierre sobre la empuñadura
-    rotation: [0, 0, 0], // Espada vertical hacia arriba
+    scale: 0.009,
+    position: [0, -0.15, 0], // Agarre sobre la empuñadura
+    rotation: [0, 0, 0], // Espada orientada hacia adelante en el agarre
   },
+  // Paladín (Espada en mano derecha + Escudo en mano izquierda)
   paladin: {
     hand: "right",
-    scale: 0.01,
-    position: [0, -0.2, 0],
-    rotation: [0, 0, 0], // Espada vertical hacia arriba
+    scale: 0.009,
+    position: [0, -0.15, 0],
+    rotation: [0, 0, 0],
     shield: {
-      scale: 0.01,
-      position: [0, -0.05, 0.05],
-      rotation: [0, Math.PI / 2, 0],
+      scale: 0.009,
+      position: [0, 0, 0.04],
+      rotation: [Math.PI / 2, 0, 0], // Escudo plano cubriendo hacia adelante
     },
   },
-
-  // Pícaro / Asesino (Dagas duales: derecha e izquierda)
+  // Asesino (Dagas duales en ambas manos)
   assassin: {
     hand: "both",
-    scale: 0.009,
-    position: [0, -0.1, 0],
-    rotation: [0, 0, 0], // Agarre normal
-    leftHandPosition: [0, -0.1, 0],
-    leftHandRotation: [0, Math.PI, 0], // Espejada para la mano izquierda
+    scale: 0.0085,
+    position: [0, -0.08, 0],
+    rotation: [0, 0, 0],
+    leftHandPosition: [0, -0.08, 0],
+    leftHandRotation: [0, 0, 0],
   },
-
-  // Cazador (Arco en mano izquierda para disparar con la derecha)
+  // Cazador (Arco vertical en mano izquierda)
   hunter: {
     hand: "left",
-    scale: 0.011,
-    position: [0, 0, 0.05],
-    rotation: [0, Math.PI / 2, 0], // Arco vertical sobre Y
+    scale: 0.009,
+    position: [0, 0, 0],
+    rotation: [0, 0, Math.PI / 2], // Arco vertical en el puño izquierdo
   },
-
-  // Mago / Brujo (Báculo en mano derecha, sujeto a la mitad-alta)
+  // Mago (Báculo erguido en mano derecha)
   mage: {
     hand: "right",
-    scale: 0.009,
-    position: [0, -0.6, 0], // Baja el báculo para que la punta mágica sobresalga arriba
-    rotation: [0, 0, 0], // Báculo vertical hacia arriba
+    scale: 0.0085,
+    position: [0, -0.3, 0], // Sujeción a media altura
+    rotation: [Math.PI / 2, 0, 0], // Báculo vertical hacia arriba
   },
+  // Brujo (Báculo erguido en mano derecha)
   warlock: {
     hand: "right",
-    scale: 0.009,
-    position: [0, -0.6, 0],
-    rotation: [0, 0, 0], // Báculo vertical hacia arriba
+    scale: 0.0085,
+    position: [0, -0.3, 0],
+    rotation: [Math.PI / 2, 0, 0],
   },
 };
 
@@ -122,30 +121,29 @@ export const ANIMATION_FILES = {
 
 /**
  * Función auxiliar para buscar el hueso correcto del slot de mano.
- * KayKit usa nombres de huesos estilo Mixamo.
+ * KayKit usa específicamente los huesos 'handslotr' y 'handslotl'.
  */
 function getBoneSlot(character: THREE.Object3D, side: "r" | "l"): THREE.Bone | null {
-  // Nombres de huesos en orden de prioridad para KayKit/Mixamo
-  const possibleNames = side === "r" 
-    ? ["mixamorig:RightHand", "RightHand", "HandR", "handr", "handslotr"]
-    : ["mixamorig:LeftHand", "LeftHand", "HandL", "handl", "handslotl"];
+  // Prioridad absoluta a los huesos de slot de agarre de KayKit
+  const targetNames = side === "r" 
+    ? ["handslotr", "handslot.r", "handslot_r", "handslotright", "righthand", "handr"]
+    : ["handslotl", "handslot.l", "handslot_l", "handslotleft", "lefthand", "handl"];
 
-  let foundBone: THREE.Bone | null = null;
+  let bestBone: THREE.Bone | null = null;
+  let bestRank = 999;
 
   character.traverse((child) => {
-    if (child instanceof THREE.Bone && !foundBone) {
+    if (child instanceof THREE.Bone) {
       const cleanName = child.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-      for (const target of possibleNames) {
-        const cleanTarget = target.toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (cleanName === cleanTarget) {
-          foundBone = child;
-          break;
-        }
+      const idx = targetNames.findIndex((target) => cleanName === target || cleanName.includes(target));
+      if (idx !== -1 && idx < bestRank) {
+        bestRank = idx;
+        bestBone = child;
       }
     }
   });
 
-  return foundBone;
+  return bestBone;
 }
 
 export async function loadClassModel(
@@ -309,26 +307,24 @@ function applyColorCustomization(
 
   object.traverse((child) => {
     if (child instanceof THREE.Mesh && child.material) {
-      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      const name = child.name.toLowerCase();
+      const mat = child.material instanceof THREE.MeshStandardMaterial
+        ? child.material
+        : (Array.isArray(child.material) ? child.material[0] : child.material);
 
-      materials.forEach((mat, index) => {
-        if (mat instanceof THREE.MeshStandardMaterial) {
-          if (mat.map) {
-            if (index === 0) {
-              mat.color = primary.clone();
-            } else {
-              mat.color = secondary.clone();
-            }
-          } else {
-            if (index === 0) {
-              mat.color = primary.clone();
-            } else {
-              mat.color = secondary.clone();
-            }
-          }
-          mat.needsUpdate = true;
+      if (mat instanceof THREE.MeshStandardMaterial) {
+        if (/head$/i.test(name)) {
+          // El rostro/piel/ojos conserva la textura original limpia (sin teñir la cara de color sólido)
+          mat.color.setRGB(1, 1, 1);
+        } else if (/cape|helm|visor|hat|mask|quiver|bear/i.test(name)) {
+          // Accesorios secundarios: capa, yelmo, visor, capucha, carcaj
+          mat.color.copy(secondary);
+        } else {
+          // Ropa/armadura principal: torso, brazos, piernas
+          mat.color.copy(primary);
         }
-      });
+        mat.needsUpdate = true;
+      }
     }
   });
 }
@@ -350,27 +346,31 @@ export function updateModelColors(
   applyColorCustomization(model.root, primaryColor, secondaryColor);
 }
 
-export function playAnimation(model: FBXModel, name: string, loop = true) {
+export function playAnimation(model: FBXModel, name: string, loop = true, speed = 1.0) {
   const clip = model.animations.get(name);
   if (!clip) {
-    console.warn(`Animation not found: ${name}`);
+    console.warn(`[FBXLoader] Animación no encontrada: ${name}`);
     return null;
   }
 
-  // Si ya está reproduciendo esta animación, no hacer nada
-  if (model.currentState === name && model.currentAction && model.currentAction.enabled) {
+  // Si ya está reproduciendo esta animación, ajustar velocidad si varía
+  if (model.currentState === name && model.currentAction && model.currentAction.isRunning()) {
+    model.currentAction.timeScale = speed;
     return model.currentAction;
   }
 
-  // Detener acción anterior
-  if (model.currentAction) {
-    model.currentAction.stop();
-  }
-
+  const prevAction = model.currentAction;
   const action = model.mixer.clipAction(clip);
   action.reset();
+  action.timeScale = speed;
   action.loop = loop ? THREE.LoopRepeat : THREE.LoopOnce;
   action.clampWhenFinished = !loop;
+
+  // Transición suave entre estados para evitar cortes bruscos
+  if (prevAction && prevAction !== action) {
+    prevAction.fadeOut(0.12);
+  }
+  action.fadeIn(0.12);
   action.play();
 
   model.currentAction = action;
@@ -380,55 +380,78 @@ export function playAnimation(model: FBXModel, name: string, loop = true) {
 }
 
 /**
- * Cambia la animación basándose en el estado del personaje
- * @param model - Modelo FBX
- * @param state - Estado de animación (idle, walk, run, attack, death, etc.)
- * @param speed - Velocidad de movimiento (0-1) para seleccionar entre walk/run
+ * Cambia la animación basándose en el estado del personaje con transiciones y velocidades óptimas
  */
-export function setAnimationByState(model: FBXModel, state: string, speed = 0) {
-  const animName = getAnimationName(state, speed);
-  if (animName) {
-    const loop = state !== "death" && state !== "attack" && state !== "hit";
-    return playAnimation(model, animName, loop);
-  }
-  return null;
-}
+export function setAnimationByState(model: FBXModel, state: string, moveSpeed = 0) {
+  let animName = "Idle_A";
+  let loop = true;
+  let speed = 1.0;
 
-/**
- * Obtiene el nombre de la animación correcto basado en el estado
- */
-function getAnimationName(state: string, speed = 0): string | null {
   switch (state) {
     case "idle":
-      return "Idle_A";
+      animName = "Idle_A";
+      loop = true;
+      speed = 1.0;
+      break;
     case "walk":
-      return "Walking_A";
+      animName = "Walking_A";
+      loop = true;
+      speed = 1.1;
+      break;
     case "run":
-      return "Running_A";
+      animName = "Running_A";
+      loop = true;
+      speed = 1.25;
+      break;
     case "attack":
-      // Mientras no tengamos los archivos de combate, usar Throw
-      return "Throw";
-    case "death":
-      return "Death_A";
-    case "hit":
-      return "Hit_A";
-    case "jump_start":
-      return "Jump_Start";
-    case "jump_idle":
-      return "Jump_Idle";
-    case "jump_land":
-      return "Jump_Land";
-    case "interact":
-      return "Interact";
-    case "pickup":
-      return "PickUp";
+      // "Use_Item" realiza un tajo/golpe activo hacia adelante con el arma equipada.
+      // Velocidad 2.4x para que el golpe se complete con impacto dentro del ciclo de ataque (~0.55s).
+      animName = model.animations.has("Use_Item") ? "Use_Item" : "Throw";
+      loop = false;
+      speed = 2.4;
+      break;
     case "cast":
-      return "Throw"; // Usar Throw temporalmente para hechizos
+      // "Interact" o "Throw" proyecta las manos hacia el objetivo para hechizos
+      animName = model.animations.has("Interact") ? "Interact" : "Throw";
+      loop = false;
+      speed = 2.0;
+      break;
     case "channel":
-      return "Interact"; // Usar Interact temporalmente para canalizar
+      animName = model.animations.has("Interact") ? "Interact" : "Idle_A";
+      loop = true;
+      speed = 1.0;
+      break;
+    case "hit":
+      animName = "Hit_A";
+      loop = false;
+      speed = 1.8;
+      break;
+    case "death":
+      animName = "Death_A";
+      loop = false;
+      speed = 1.0;
+      break;
+    case "jump_start":
+      animName = "Jump_Start";
+      loop = false;
+      speed = 1.2;
+      break;
+    case "jump_idle":
+      animName = "Jump_Idle";
+      loop = true;
+      speed = 1.0;
+      break;
+    case "jump_land":
+      animName = "Jump_Land";
+      loop = false;
+      speed = 1.4;
+      break;
     default:
-      return null;
+      animName = "Idle_A";
+      break;
   }
+
+  return playAnimation(model, animName, loop, speed);
 }
 
 export function disposeModel(model: FBXModel) {
