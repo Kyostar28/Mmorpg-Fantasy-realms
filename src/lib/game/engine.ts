@@ -318,12 +318,25 @@ export class GameEngine {
     try {
       const primaryColor = this.rec.primaryColor || this.cls.color || this.race.skin;
       const secondaryColor = this.rec.secondaryColor || this.cls.armor;
+      console.log(`[Engine] Loading FBX model for class: ${this.cls.id}`);
       this.fbxModel = await loadClassModel(this.cls.id, primaryColor, secondaryColor);
+      console.log(`[Engine] FBX model loaded, adding to scene`);
       this.pObj.add(this.fbxModel.root);
 
       // Scale the model based on race
       const scale = this.race.scale * 0.92;
       this.fbxModel.root.scale.setScalar(scale);
+      console.log(`[Engine] Model scale set to: ${scale}`);
+
+      // Center the model and adjust Y position
+      const box = new THREE.Box3().setFromObject(this.fbxModel.root);
+      const height = box.max.y - box.min.y;
+      const centerY = (box.max.y + box.min.y) / 2;
+      console.log(`[Engine] Model height: ${height}, center Y: ${centerY}, bounds:`, box);
+
+      // Adjust position so feet are at y=0
+      this.fbxModel.root.position.y = -box.min.y;
+      console.log(`[Engine] Model position adjusted to:`, this.fbxModel.root.position);
 
       // Store reference to engine for key access in animation
       const engine = this;

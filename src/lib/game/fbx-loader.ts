@@ -156,12 +156,15 @@ export async function loadClassModel(
   const weaponPath = CLASS_WEAPONS[classId];
   const shieldPath = CLASS_SHIELDS[classId];
 
+  console.log(`[FBX Loader] Loading model for class: ${classId}, path: ${modelPath}`);
+
   if (!modelPath) {
     throw new Error(`No model found for class: ${classId}`);
   }
 
   // 1. Cargar el personaje
   const object = await loader.loadAsync(modelPath);
+  console.log(`[FBX Loader] Model loaded successfully. Object children: ${object.children.length}, Animations: ${object.animations?.length || 0}`);
   const root = new THREE.Group();
   root.add(object);
 
@@ -300,6 +303,15 @@ export async function loadClassModel(
   }
 
   console.log(`[FBX Loader] Total animations available for ${classId}:`, Array.from(animations.keys()));
+
+  // Log model bounds for debugging
+  const box = new THREE.Box3().setFromObject(object);
+  console.log(`[FBX Loader] Model bounds:`, box);
+  console.log(`[FBX Loader] Model size:`, {
+    width: box.max.x - box.min.x,
+    height: box.max.y - box.min.y,
+    depth: box.max.z - box.min.z
+  });
 
   return { root, mixer, animations, originalMaterials, currentAction: null, currentState: "" };
 }
