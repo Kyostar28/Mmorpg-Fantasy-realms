@@ -14,7 +14,7 @@ export interface FBXModel {
 const loader = new FBXLoader();
 
 export const CLASS_MODELS: Record<string, string> = {
-  warrior: "/pjs/Characters/fbx/Knight.fbx", // Temporarily revert to Knight.fbx to test
+  warrior: "/Warriorfixed.fbx",
   paladin: "/pjs/Characters/fbx/Knight.fbx",
   assassin: "/pjs/Characters/fbx/Rogue_Hooded.fbx",
   hunter: "/pjs/Characters/fbx/Ranger.fbx",
@@ -168,6 +168,11 @@ export async function loadClassModel(
   const root = new THREE.Group();
   root.add(object);
 
+  // Log all children names for debugging
+  object.traverse((child) => {
+    console.log(`[FBX Loader] Child: ${child.name}, type: ${child.type}`);
+  });
+
   // 2. Guardar materiales originales
   const originalMaterials = new Map<THREE.Mesh, THREE.Material>();
   object.traverse((child) => {
@@ -176,8 +181,8 @@ export async function loadClassModel(
     }
   });
 
-  // 3. Aplicar textura base del personaje
-  if (texturePath) {
+  // 3. Aplicar textura base del personaje (skip for warrior as it has embedded textures)
+  if (texturePath && classId !== "warrior") {
     const textureLoader = new THREE.TextureLoader();
     try {
       const texture = await textureLoader.loadAsync(texturePath);
@@ -199,8 +204,8 @@ export async function loadClassModel(
     }
   }
 
-  // 4. Cargar y acoplar el arma
-  if (weaponPath && WEAPON_CONFIG[classId]) {
+  // 4. Cargar y acoplar el arma (skip for warrior as it has embedded weapons)
+  if (weaponPath && WEAPON_CONFIG[classId] && classId !== "warrior") {
     try {
       const config = WEAPON_CONFIG[classId];
       const weaponFBX = await loader.loadAsync(weaponPath);
@@ -244,8 +249,8 @@ export async function loadClassModel(
     }
   }
 
-  // 5. Cargar y acoplar el escudo (si existe)
-  if (shieldPath && WEAPON_CONFIG[classId]?.shield) {
+  // 5. Cargar y acoplar el escudo (si existe, skip for warrior as it has embedded assets)
+  if (shieldPath && WEAPON_CONFIG[classId]?.shield && classId !== "warrior") {
     try {
       const config = WEAPON_CONFIG[classId]!;
       const shieldConfig = config.shield!;
@@ -270,8 +275,8 @@ export async function loadClassModel(
     }
   }
 
-  // 6. Aplicar colorización si se proporcionan colores
-  if (primaryColor || secondaryColor) {
+  // 6. Aplicar colorización si se proporcionan colores (skip for warrior)
+  if (primaryColor || secondaryColor && classId !== "warrior") {
     applyColorCustomization(object, primaryColor || "#c79c6e", secondaryColor || "#5a3b22");
   }
 

@@ -328,6 +328,14 @@ export class GameEngine {
       this.fbxModel.root.scale.setScalar(scale);
       console.log(`[Engine] Model scale set to: ${scale}`);
 
+      // Enable shadows for the model
+      this.fbxModel.root.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
       // Store reference to engine for key access in animation
       const engine = this;
 
