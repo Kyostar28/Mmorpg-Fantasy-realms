@@ -40,9 +40,10 @@ export const CLASS_WEAPONS: Record<string, string> = {
   warlock: "/pjs/Assets/fbx/staff.fbx",
 };
 
-export const WEAPON_TEXTURES: Record<string, { map: string; metalnessMap?: string; roughnessMap?: string }> = {
+export const WEAPON_TEXTURES: Record<string, { map: string; normalMap?: string; metalnessMap?: string; roughnessMap?: string }> = {
   warrior: {
     map: "/Meshy_AI_War_Hammer_Low_Poly_1013042253_texture.png",
+    normalMap: "/Meshy_AI_War_Hammer_Low_Poly_1013042253_texture_normal.png",
     metalnessMap: "/Meshy_AI_War_Hammer_Low_Poly_1013042253_texture_metallic.png",
     roughnessMap: "/Meshy_AI_War_Hammer_Low_Poly_1013042253_texture_roughness.png",
   },
@@ -71,12 +72,12 @@ export interface WeaponSlotConfig {
 }
 
 export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
-  // Guerrero (Martillo de guerra / Two-handed War Hammer en mano derecha)
+  // Guerrero (Martillo de guerra / Two-handed War Hammer horizontal hacia adelante)
   warrior: {
     hand: "right",
     scale: 0.38,
-    position: [0, 0, 0.45], // Agarre sobre el mango
-    rotation: [Math.PI, 0, 0], // Orientado hacia arriba/adelante en la mano
+    position: [0, -10, 20], // Agarre centrado en la mano
+    rotation: [3.4, 0.2, 1.1], // Horizontal hacia adelante
   },
   // Paladín (Espada en mano derecha + Escudo en mano izquierda)
   paladin: {
@@ -255,23 +256,51 @@ export async function loadClassModel(
     }
   });
 
-  // 3. Aplicar textura base del personaje
+  // 3. Aplicar textura base del personaje, mapa de normales y Shade Smooth
   if (texturePath) {
     const textureLoader = new THREE.TextureLoader();
     try {
       const texture = await textureLoader.loadAsync(texturePath);
       texture.colorSpace = THREE.SRGBColorSpace;
 
+      let normalTexture: THREE.Texture | null = null;
+      if (classId === "warrior") {
+        try {
+          normalTexture = await textureLoader.loadAsync("/warrior_texture_normal.png");
+        } catch (ne) {
+          console.warn("Failed to load warrior normal map:", ne);
+        }
+      }
+
       object.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material) {
-          const mats = Array.isArray(child.material) ? child.material : [child.material];
-          mats.forEach((mat) => {
-            if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhongMaterial) {
-              mat.map = texture;
-              mat.color.setRGB(1, 1, 1); // Evitar que el color base tiña de gris la textura
-              mat.needsUpdate = true;
-            }
-          });
+        if (child instanceof THREE.Mesh) {
+          // Activar "Shade Smooth" (Suavizado de normales) en la geometría
+          child.geometry.computeVertexNormals();
+
+          if (classId === "warrior") {
+            // Material PBR estándar para guerrero con relieve 3D y brillo
+            child.material = new THREE.MeshStandardMaterial({
+              map: texture,
+              normalMap: normalTexture || undefined,
+              normalScale: new THREE.Vector2(1.5, 1.5),
+              color: new THREE.Color(0xffffff), // Base pura blanca sin tinte gris
+              roughness: 0.35, // Deslizador de rugosidad en 0.35 para reflejo y volumen
+              metalness: 0.6, // Reflejo metálico de armadura
+              flatShading: false, // Suavizado de sombreado (Shade Smooth)
+            });
+            child.castShadow = true;
+            child.receiveShadow = true;
+          } else if (child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((mat) => {
+              if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhongMaterial) {
+                mat.map = texture;
+                mat.color.setRGB(1, 1, 1);
+                mat.flatShading = false;
+                mat.needsUpdate = true;
+              }
+            });
+          }
         }
       });
     } catch (e) {
@@ -285,13 +314,21 @@ export async function loadClassModel(
       const config = WEAPON_CONFIG[classId];
       const weaponFBX = await loader.loadAsync(weaponPath);
 
-      // Cargar y aplicar texturas PBR si están configuradas para el arma
+      // Activar Shade Smooth en el arma
+      weaponFBX.traverse((c) => {
+        if (c instanceof THREE.Mesh) {
+          c.geometry.computeVertexNormals();
+        }
+      });
+
+      // Cargar y aplicar texturas PBR y Normal Map al arma
       const texConfig = WEAPON_TEXTURES[classId];
       if (texConfig) {
         try {
           const textureLoader = new THREE.TextureLoader();
           const baseMap = await textureLoader.loadAsync(texConfig.map);
           baseMap.colorSpace = THREE.SRGBColorSpace;
+          const normalMap = texConfig.normalMap ? await textureLoader.loadAsync(texConfig.normalMap) : null;
           const metalMap = texConfig.metalnessMap ? await textureLoader.loadAsync(texConfig.metalnessMap) : null;
           const roughMap = texConfig.roughnessMap ? await textureLoader.loadAsync(texConfig.roughnessMap) : null;
 
@@ -299,10 +336,14 @@ export async function loadClassModel(
             if (c instanceof THREE.Mesh) {
               c.material = new THREE.MeshStandardMaterial({
                 map: baseMap,
+                normalMap: normalMap || undefined,
+                normalScale: new THREE.Vector2(1.2, 1.2),
                 metalnessMap: metalMap || undefined,
                 roughnessMap: roughMap || undefined,
-                metalness: metalMap ? 1.0 : 0.3,
-                roughness: roughMap ? 1.0 : 0.5,
+                color: new THREE.Color(0xffffff),
+                metalness: metalMap ? 1.0 : 0.65,
+                roughness: 0.35, // Rugosidad en 0.35 para reflejos metálicos
+                flatShading: false, // Shade Smooth
               });
               c.castShadow = true;
               c.receiveShadow = true;
