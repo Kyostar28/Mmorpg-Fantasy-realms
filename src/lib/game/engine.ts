@@ -328,16 +328,6 @@ export class GameEngine {
       this.fbxModel.root.scale.setScalar(scale);
       console.log(`[Engine] Model scale set to: ${scale}`);
 
-      // Center the model and adjust Y position
-      const box = new THREE.Box3().setFromObject(this.fbxModel.root);
-      const height = box.max.y - box.min.y;
-      const centerY = (box.max.y + box.min.y) / 2;
-      console.log(`[Engine] Model height: ${height}, center Y: ${centerY}, bounds:`, box);
-
-      // Adjust position so feet are at y=0
-      this.fbxModel.root.position.y = -box.min.y;
-      console.log(`[Engine] Model position adjusted to:`, this.fbxModel.root.position);
-
       // Store reference to engine for key access in animation
       const engine = this;
 

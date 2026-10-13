@@ -14,7 +14,7 @@ export interface FBXModel {
 const loader = new FBXLoader();
 
 export const CLASS_MODELS: Record<string, string> = {
-  warrior: "/Warriorfixed.fbx",
+  warrior: "/pjs/Characters/fbx/Knight.fbx", // Temporarily revert to Knight.fbx to test
   paladin: "/pjs/Characters/fbx/Knight.fbx",
   assassin: "/pjs/Characters/fbx/Rogue_Hooded.fbx",
   hunter: "/pjs/Characters/fbx/Ranger.fbx",
@@ -176,8 +176,8 @@ export async function loadClassModel(
     }
   });
 
-  // 3. Aplicar textura base del personaje (skip for warrior as it has embedded textures)
-  if (texturePath && classId !== "warrior") {
+  // 3. Aplicar textura base del personaje
+  if (texturePath) {
     const textureLoader = new THREE.TextureLoader();
     try {
       const texture = await textureLoader.loadAsync(texturePath);
@@ -199,8 +199,8 @@ export async function loadClassModel(
     }
   }
 
-  // 4. Cargar y acoplar el arma (skip for warrior as it has embedded weapons)
-  if (weaponPath && WEAPON_CONFIG[classId] && classId !== "warrior") {
+  // 4. Cargar y acoplar el arma
+  if (weaponPath && WEAPON_CONFIG[classId]) {
     try {
       const config = WEAPON_CONFIG[classId];
       const weaponFBX = await loader.loadAsync(weaponPath);
@@ -244,8 +244,8 @@ export async function loadClassModel(
     }
   }
 
-  // 5. Cargar y acoplar el escudo (si existe, skip for warrior as it has embedded assets)
-  if (shieldPath && WEAPON_CONFIG[classId]?.shield && classId !== "warrior") {
+  // 5. Cargar y acoplar el escudo (si existe)
+  if (shieldPath && WEAPON_CONFIG[classId]?.shield) {
     try {
       const config = WEAPON_CONFIG[classId]!;
       const shieldConfig = config.shield!;
