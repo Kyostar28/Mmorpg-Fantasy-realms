@@ -23,7 +23,7 @@ export const CLASS_MODELS: Record<string, string> = {
 };
 
 export const CLASS_TEXTURES: Record<string, string> = {
-  warrior: "/pjs/Characters/fbx/knight_texture.png",
+  warrior: "/warrior_texture.png",
   paladin: "/pjs/Characters/fbx/knight_texture.png",
   assassin: "/pjs/Characters/fbx/rogue_texture.png",
   hunter: "/pjs/Characters/fbx/ranger_texture.png",
@@ -75,8 +75,8 @@ export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
   warrior: {
     hand: "right",
     scale: 0.38,
-    position: [0, -18, 0], // Agarre sobre el mango
-    rotation: [Math.PI / 2, 0, 0], // Orientado hacia adelante en la mano
+    position: [0, 0, 0.45], // Agarre sobre el mango
+    rotation: [Math.PI, 0, 0], // Orientado hacia arriba/adelante en la mano
   },
   // Paladín (Espada en mano derecha + Escudo en mano izquierda)
   paladin: {
@@ -155,6 +155,61 @@ function getBoneSlot(character: THREE.Object3D, side: "r" | "l"): THREE.Bone | n
   return bestBone;
 }
 
+/**
+ * Genera una animación de reposo (idle) natural con respiración sutil y postura de combate
+ * para evitar que el modelo quede estático en T-pose.
+ */
+function createWarriorIdleClip(character: THREE.Object3D, walkClip: THREE.AnimationClip): THREE.AnimationClip {
+  const mixer = new THREE.AnimationMixer(character);
+  const action = mixer.clipAction(walkClip);
+  action.play();
+  mixer.setTime(0.0); // Postura erguida con pies en suelo y brazos abajo relajados
+  character.updateMatrixWorld(true);
+
+  const duration = 2.4;
+  const times = [0, 1.2, 2.4];
+  const tracks: THREE.KeyframeTrack[] = [];
+
+  character.traverse((child) => {
+    if (child instanceof THREE.Bone) {
+      const p = child.position.clone();
+      const q = child.quaternion.clone();
+      const s = child.scale.clone();
+
+      // Respiración sutil en torso y cabeza
+      let pValues: number[];
+      if (child.name.includes("Spine") || child.name.includes("Head")) {
+        pValues = [
+          p.x, p.y, p.z,
+          p.x, p.y + 0.8, p.z,
+          p.x, p.y, p.z,
+        ];
+      } else {
+        pValues = [p.x, p.y, p.z, p.x, p.y, p.z, p.x, p.y, p.z];
+      }
+      tracks.push(new THREE.VectorKeyframeTrack(`${child.name}.position`, times, pValues));
+
+      // Rotación sutil de respiración en columna
+      let qValues: number[];
+      if (child.name === "mixamorigSpine1" || child.name === "mixamorigSpine2") {
+        const qBreathe = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.02));
+        qValues = [
+          q.x, q.y, q.z, q.w,
+          qBreathe.x, qBreathe.y, qBreathe.z, qBreathe.w,
+          q.x, q.y, q.z, q.w,
+        ];
+      } else {
+        qValues = [q.x, q.y, q.z, q.w, q.x, q.y, q.z, q.w, q.x, q.y, q.z, q.w];
+      }
+      tracks.push(new THREE.QuaternionKeyframeTrack(`${child.name}.quaternion`, times, qValues));
+      tracks.push(new THREE.VectorKeyframeTrack(`${child.name}.scale`, times, [s.x, s.y, s.z, s.x, s.y, s.z, s.x, s.y, s.z]));
+    }
+  });
+
+  mixer.stopAllAction();
+  return new THREE.AnimationClip("Warrior_Idle", duration, tracks);
+}
+
 export async function loadClassModel(
   classId: string,
   primaryColor?: string,
@@ -200,8 +255,8 @@ export async function loadClassModel(
     }
   });
 
-  // 3. Aplicar textura base del personaje (skip for warrior as it has embedded textures)
-  if (texturePath && classId !== "warrior") {
+  // 3. Aplicar textura base del personaje
+  if (texturePath) {
     const textureLoader = new THREE.TextureLoader();
     try {
       const texture = await textureLoader.loadAsync(texturePath);
@@ -211,8 +266,9 @@ export async function loadClassModel(
         if (child instanceof THREE.Mesh && child.material) {
           const mats = Array.isArray(child.material) ? child.material : [child.material];
           mats.forEach((mat) => {
-            if (mat instanceof THREE.MeshStandardMaterial) {
+            if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhongMaterial) {
               mat.map = texture;
+              mat.color.setRGB(1, 1, 1); // Evitar que el color base tiña de gris la textura
               mat.needsUpdate = true;
             }
           });
@@ -325,7 +381,7 @@ export async function loadClassModel(
   }
 
   // 6. Aplicar colorización si se proporcionan colores (skip for warrior)
-  if (primaryColor || secondaryColor && classId !== "warrior") {
+  if ((primaryColor || secondaryColor) && classId !== "warrior") {
     applyColorCustomization(object, primaryColor || "#c79c6e", secondaryColor || "#5a3b22");
   }
 
@@ -387,13 +443,19 @@ export async function loadClassModel(
         animations.set("Death", clip);
         animations.set("Dead", clip);
       }
-      if (lower.includes("clip0") || lower.includes("baselayer")) {
-        animations.set("idle", clip);
-        animations.set("Idle", clip);
-        animations.set("Idle_A", clip);
-        animations.set("stand", clip);
-      }
     });
+
+    // Generar animación natural de reposo (idle) para el guerrero para eliminar el T-pose
+    const walkClip = object.animations.find((c) => c.name.toLowerCase().includes("walking"));
+    if (walkClip) {
+      const idleClip = createWarriorIdleClip(object, walkClip);
+      animations.set("idle", idleClip);
+      animations.set("Idle", idleClip);
+      animations.set("Idle_A", idleClip);
+      animations.set("Warrior_Idle", idleClip);
+      animations.set("stand", idleClip);
+    }
+
     console.log(`[FBX Loader] Using ${object.animations.length} embedded animations with aliases:`, Array.from(animations.keys()));
   } else {
     // Fall back to loading separate animation files
@@ -465,6 +527,13 @@ export function updateModelColors(
   primaryColor: string,
   secondaryColor: string
 ) {
+  // Si el modelo es el guerrero (malla char1 con textura propia 4K), no sobreescribir con tinte plano
+  let isWarrior = false;
+  model.root.traverse((child) => {
+    if (child.name === "char1") isWarrior = true;
+  });
+  if (isWarrior) return;
+
   model.root.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       const original = model.originalMaterials.get(child);
@@ -538,7 +607,7 @@ export function setAnimationByState(model: FBXModel, state: string, moveSpeed = 
 
   switch (state) {
     case "idle":
-      animName = findAnimationName(model, ["idle", "Idle", "Idle_A", "Stand", "Wait", "clip0", "baselayer"]) || "Idle_A";
+      animName = findAnimationName(model, ["Warrior_Idle", "idle", "Idle", "Idle_A", "Stand", "Wait"]) || "Idle_A";
       loop = true;
       speed = 1.0;
       break;

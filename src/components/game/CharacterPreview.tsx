@@ -142,13 +142,13 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
 
   useEffect(() => {
     const s = state.current;
-    if (!s || !s.model || !primaryColor || !secondaryColor) return;
+    if (!s || !s.model || !primaryColor || !secondaryColor || cls === "warrior") return;
     try {
       updateModelColors(s.model, primaryColor, secondaryColor);
     } catch (e) {
       console.error("Failed to update model colors:", e);
     }
-  }, [primaryColor, secondaryColor]);
+  }, [cls, primaryColor, secondaryColor]);
 
   return (
     <div ref={ref} className="h-full w-full relative">
