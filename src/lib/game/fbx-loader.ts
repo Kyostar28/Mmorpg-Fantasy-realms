@@ -32,12 +32,20 @@ export const CLASS_TEXTURES: Record<string, string> = {
 };
 
 export const CLASS_WEAPONS: Record<string, string> = {
-  warrior: "/pjs/Assets/fbx/sword_1handed.fbx",
+  warrior: "/Meshy_AI_War_Hammer_Low_Poly_1013042253_texture.fbx",
   paladin: "/pjs/Assets/fbx/sword_1handed.fbx",
   assassin: "/pjs/Assets/fbx/dagger.fbx",
   hunter: "/pjs/Assets/fbx/bow.fbx",
   mage: "/pjs/Assets/fbx/staff.fbx",
   warlock: "/pjs/Assets/fbx/staff.fbx",
+};
+
+export const WEAPON_TEXTURES: Record<string, { map: string; metalnessMap?: string; roughnessMap?: string }> = {
+  warrior: {
+    map: "/Meshy_AI_War_Hammer_Low_Poly_1013042253_texture.png",
+    metalnessMap: "/Meshy_AI_War_Hammer_Low_Poly_1013042253_texture_metallic.png",
+    roughnessMap: "/Meshy_AI_War_Hammer_Low_Poly_1013042253_texture_roughness.png",
+  },
 };
 
 export const CLASS_SHIELDS: Record<string, string> = {
@@ -63,12 +71,12 @@ export interface WeaponSlotConfig {
 }
 
 export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
-  // Guerrero (Espada de 1 mano en mano derecha)
+  // Guerrero (Martillo de guerra / Two-handed War Hammer en mano derecha)
   warrior: {
     hand: "right",
-    scale: 0.009,
-    position: [0, -0.15, 0], // Agarre sobre la empuñadura
-    rotation: [0, 0, 0], // Espada orientada hacia adelante en el agarre
+    scale: 0.38,
+    position: [0, -18, 0], // Agarre sobre el mango
+    rotation: [Math.PI / 2, 0, 0], // Orientado hacia adelante en la mano
   },
   // Paladín (Espada en mano derecha + Escudo en mano izquierda)
   paladin: {
@@ -122,12 +130,12 @@ export const ANIMATION_FILES = {
 /**
  * Función auxiliar para buscar el hueso correcto del slot de mano.
  * KayKit usa específicamente los huesos 'handslotr' y 'handslotl'.
+ * Modelos con rig Mixamo usan 'mixamorigRightHand' y 'mixamorigLeftHand'.
  */
 function getBoneSlot(character: THREE.Object3D, side: "r" | "l"): THREE.Bone | null {
-  // Prioridad absoluta a los huesos de slot de agarre de KayKit
   const targetNames = side === "r" 
-    ? ["handslotr", "handslot.r", "handslot_r", "handslotright", "righthand", "handr"]
-    : ["handslotl", "handslot.l", "handslot_l", "handslotleft", "lefthand", "handl"];
+    ? ["handslotr", "handslot.r", "handslot_r", "handslotright", "mixamorigrighthand", "righthand", "handr"]
+    : ["handslotl", "handslot.l", "handslot_l", "handslotleft", "mixamoriglefthand", "lefthand", "handl"];
 
   let bestBone: THREE.Bone | null = null;
   let bestRank = 999;
@@ -135,6 +143,7 @@ function getBoneSlot(character: THREE.Object3D, side: "r" | "l"): THREE.Bone | n
   character.traverse((child) => {
     if (child instanceof THREE.Bone) {
       const cleanName = child.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (cleanName.endsWith("end")) return;
       const idx = targetNames.findIndex((target) => cleanName === target || cleanName.includes(target));
       if (idx !== -1 && idx < bestRank) {
         bestRank = idx;
@@ -167,6 +176,16 @@ export async function loadClassModel(
   console.log(`[FBX Loader] Model loaded successfully. Object children: ${object.children.length}, Animations: ${object.animations?.length || 0}`);
   const root = new THREE.Group();
   root.add(object);
+
+  // Normalizar escala y pisada en el suelo para modelos en unidades grandes (ej. Warriorfixed.fbx)
+  const initialBox = new THREE.Box3().setFromObject(object);
+  const modelHeight = initialBox.max.y - initialBox.min.y;
+  if (modelHeight > 10) {
+    const targetHeight = 2.54; // Altura estándar equivalente a Knight.fbx
+    const normFactor = targetHeight / modelHeight;
+    object.scale.setScalar(normFactor);
+    object.position.y = -initialBox.min.y * normFactor; // Apoyar pies firmemente en el suelo (y=0)
+  }
 
   // Log all children names for debugging
   object.traverse((child) => {
@@ -204,16 +223,46 @@ export async function loadClassModel(
     }
   }
 
-  // 4. Cargar y acoplar el arma (skip for warrior as it has embedded weapons)
-  if (weaponPath && WEAPON_CONFIG[classId] && classId !== "warrior") {
+  // 4. Cargar y acoplar el arma
+  if (weaponPath && WEAPON_CONFIG[classId]) {
     try {
       const config = WEAPON_CONFIG[classId];
       const weaponFBX = await loader.loadAsync(weaponPath);
 
-      // Ajustar materiales del arma si es necesario
-      weaponFBX.traverse((c) => {
-        if (c instanceof THREE.Mesh) c.castShadow = true;
-      });
+      // Cargar y aplicar texturas PBR si están configuradas para el arma
+      const texConfig = WEAPON_TEXTURES[classId];
+      if (texConfig) {
+        try {
+          const textureLoader = new THREE.TextureLoader();
+          const baseMap = await textureLoader.loadAsync(texConfig.map);
+          baseMap.colorSpace = THREE.SRGBColorSpace;
+          const metalMap = texConfig.metalnessMap ? await textureLoader.loadAsync(texConfig.metalnessMap) : null;
+          const roughMap = texConfig.roughnessMap ? await textureLoader.loadAsync(texConfig.roughnessMap) : null;
+
+          weaponFBX.traverse((c) => {
+            if (c instanceof THREE.Mesh) {
+              c.material = new THREE.MeshStandardMaterial({
+                map: baseMap,
+                metalnessMap: metalMap || undefined,
+                roughnessMap: roughMap || undefined,
+                metalness: metalMap ? 1.0 : 0.3,
+                roughness: roughMap ? 1.0 : 0.5,
+              });
+              c.castShadow = true;
+              c.receiveShadow = true;
+            }
+          });
+        } catch (texErr) {
+          console.warn(`[FBX Loader] Error loading weapon textures:`, texErr);
+        }
+      } else {
+        weaponFBX.traverse((c) => {
+          if (c instanceof THREE.Mesh) {
+            c.castShadow = true;
+            c.receiveShadow = true;
+          }
+        });
+      }
 
       // 1. Equipar mano derecha
       if (config.hand === "right" || config.hand === "both") {
@@ -286,8 +335,66 @@ export async function loadClassModel(
 
   // Check if the model has embedded animations (like Warriorfixed.fbx)
   if (object.animations && object.animations.length > 0) {
-    object.animations.forEach((clip) => animations.set(clip.name, clip));
-    console.log(`[FBX Loader] Using ${object.animations.length} embedded animations from model:`, object.animations.map(a => a.name));
+    object.animations.forEach((clip) => {
+      animations.set(clip.name, clip);
+      const parts = clip.name.split("|");
+      const shortName = parts[parts.length - 1];
+      animations.set(shortName, clip);
+      animations.set(shortName.toLowerCase(), clip);
+
+      const lower = clip.name.toLowerCase();
+      if (lower.includes("sword_slash") || (lower.includes("slash") && !lower.includes("charged"))) {
+        animations.set("attack", clip);
+        animations.set("Attack", clip);
+        animations.set("Attack_01", clip);
+        animations.set("Slash", clip);
+      }
+      if (lower.includes("charged_slash")) {
+        animations.set("charged_attack", clip);
+        animations.set("attack_heavy", clip);
+      }
+      if (lower.includes("spartan_kick") || lower.includes("kick")) {
+        animations.set("kick", clip);
+      }
+      if (lower.includes("skill_01") || lower.includes("skill")) {
+        animations.set("skill", clip);
+        animations.set("cast", clip);
+        animations.set("Cast", clip);
+      }
+      if (lower.includes("block")) {
+        animations.set("block", clip);
+        animations.set("channel", clip);
+      }
+      if (lower.includes("walking")) {
+        animations.set("walk", clip);
+        animations.set("Walk", clip);
+        animations.set("Walking", clip);
+        animations.set("Walking_A", clip);
+      }
+      if (lower.includes("running")) {
+        animations.set("run", clip);
+        animations.set("Run", clip);
+        animations.set("Running", clip);
+        animations.set("Running_A", clip);
+      }
+      if (lower.includes("hit_reaction") || lower.includes("hit")) {
+        animations.set("hit", clip);
+        animations.set("Hit", clip);
+        animations.set("Hit_A", clip);
+      }
+      if (lower.includes("dead") || lower.includes("death")) {
+        animations.set("death", clip);
+        animations.set("Death", clip);
+        animations.set("Dead", clip);
+      }
+      if (lower.includes("clip0") || lower.includes("baselayer")) {
+        animations.set("idle", clip);
+        animations.set("Idle", clip);
+        animations.set("Idle_A", clip);
+        animations.set("stand", clip);
+      }
+    });
+    console.log(`[FBX Loader] Using ${object.animations.length} embedded animations with aliases:`, Array.from(animations.keys()));
   } else {
     // Fall back to loading separate animation files
     try {
@@ -412,6 +519,12 @@ function findAnimationName(model: FBXModel, possibleNames: string[]): string | n
       return name;
     }
   }
+  const keys = Array.from(model.animations.keys());
+  for (const name of possibleNames) {
+    const lower = name.toLowerCase();
+    const found = keys.find((k) => k.toLowerCase() === lower || k.toLowerCase().includes(lower));
+    if (found) return found;
+  }
   return null;
 }
 
@@ -425,43 +538,42 @@ export function setAnimationByState(model: FBXModel, state: string, moveSpeed = 
 
   switch (state) {
     case "idle":
-      animName = findAnimationName(model, ["Idle", "Idle_A", "Stand", "Wait"]) || "Idle_A";
+      animName = findAnimationName(model, ["idle", "Idle", "Idle_A", "Stand", "Wait", "clip0", "baselayer"]) || "Idle_A";
       loop = true;
       speed = 1.0;
       break;
     case "walk":
-      animName = findAnimationName(model, ["Walk", "Walking", "Walking_A", "Forward"]) || "Walking_A";
+      animName = findAnimationName(model, ["walk", "Walk", "Walking", "Walking_A", "Forward"]) || "Walking_A";
       loop = true;
       speed = 1.1;
       break;
     case "run":
-      animName = findAnimationName(model, ["Run", "Running", "Running_A", "Sprint"]) || "Running_A";
+      animName = findAnimationName(model, ["run", "Run", "Running", "Running_A", "Sprint"]) || "Running_A";
       loop = true;
       speed = 1.25;
       break;
     case "attack":
-      // Try multiple attack animation names
-      animName = findAnimationName(model, ["Attack", "Attack_01", "Attack_1", "Melee", "Slash", "Strike", "Use_Item", "Throw"]) || "Attack";
+      animName = findAnimationName(model, ["attack", "Attack", "Right_Hand_Sword_Slash", "Slash", "Attack_01", "Attack_1", "Melee", "Strike"]) || "Attack";
       loop = false;
-      speed = 2.4;
+      speed = 1.8;
       break;
     case "cast":
-      animName = findAnimationName(model, ["Cast", "Spell", "Magic", "Interact", "Throw"]) || "Cast";
+      animName = findAnimationName(model, ["cast", "Cast", "skill", "Skill_01", "Spell", "Magic", "Charged_Slash"]) || "Cast";
       loop = false;
-      speed = 2.0;
+      speed = 1.6;
       break;
     case "channel":
-      animName = findAnimationName(model, ["Channel", "Cast", "Idle", "Idle_A"]) || "Idle_A";
+      animName = findAnimationName(model, ["channel", "block", "Block2", "Channel", "Cast", "Idle", "Idle_A"]) || "Idle_A";
       loop = true;
       speed = 1.0;
       break;
     case "hit":
-      animName = findAnimationName(model, ["Hit", "Hit_A", "Damage", "TakeDamage"]) || "Hit_A";
+      animName = findAnimationName(model, ["hit", "Hit", "Hit_Reaction", "Hit_A", "Damage", "TakeDamage"]) || "Hit_A";
       loop = false;
       speed = 1.8;
       break;
     case "death":
-      animName = findAnimationName(model, ["Death", "Death_A", "Die", "Fall"]) || "Death_A";
+      animName = findAnimationName(model, ["death", "Death", "dead", "Dead", "Death_A", "Die", "Fall"]) || "Death_A";
       loop = false;
       speed = 1.0;
       break;
@@ -481,7 +593,7 @@ export function setAnimationByState(model: FBXModel, state: string, moveSpeed = 
       speed = 1.4;
       break;
     default:
-      animName = findAnimationName(model, ["Idle", "Idle_A"]) || "Idle_A";
+      animName = findAnimationName(model, ["idle", "Idle", "Idle_A"]) || "Idle_A";
       break;
   }
 

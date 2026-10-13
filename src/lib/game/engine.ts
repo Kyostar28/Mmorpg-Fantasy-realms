@@ -362,13 +362,13 @@ export class GameEngine {
             } else if (s.action === "channel") {
               animState = "channel";
             } else if (s.speed > 0.1) {
-              // Check if running (W + R pressed)
-              const isRunning = (engine.keys.has("w") || engine.keys.has("arrowup")) && engine.keys.has("r");
+              // Check if running (W + R pressed or Shift)
+              const isRunning = (engine.keys.has("w") || engine.keys.has("arrowup")) && (engine.keys.has("r") || engine.keys.has("shift"));
               animState = (isRunning || s.speed > 0.6) ? "run" : "walk";
             }
 
             // Set animation based on state
-            const isRunning = (engine.keys.has("w") || engine.keys.has("arrowup")) && engine.keys.has("r");
+            const isRunning = (engine.keys.has("w") || engine.keys.has("arrowup")) && (engine.keys.has("r") || engine.keys.has("shift"));
             setAnimationByState(engine.fbxModel, animState, s.speed, isRunning);
           }
         },
@@ -1217,8 +1217,8 @@ export class GameEngine {
       if (k.has("s") || k.has("arrowdown")) dir.sub(fwd);
       if (k.has("a") || k.has("arrowleft")) dir.sub(right);
       if (k.has("d") || k.has("arrowright")) dir.add(right);
-      // Check for running (W + R)
-      const isRunning = (k.has("w") || k.has("arrowup")) && k.has("r");
+      // Check for running (W + R or Shift)
+      const isRunning = (k.has("w") || k.has("arrowup")) && (k.has("r") || k.has("shift"));
       if (this.dash) {
         this.dash.t += dt;
         const step = this.dash.to.clone().sub(this.pos).setY(0);
@@ -1309,7 +1309,8 @@ export class GameEngine {
     }
     if (this.anim.action) {
       this.anim.actionT += dt;
-      if (this.anim.action !== "channel" && this.anim.action !== "hit" && this.anim.actionT > 0.55) this.anim.action = null;
+      const maxDuration = this.anim.action === "attack" ? 0.75 : 0.55;
+      if (this.anim.action !== "channel" && this.anim.action !== "hit" && this.anim.actionT > maxDuration) this.anim.action = null;
       if (this.anim.action === "channel" && !this.casting) this.anim.action = null;
       if (this.anim.action === "hit" && this.anim.actionT > 0.4) this.anim.action = null;
     }
