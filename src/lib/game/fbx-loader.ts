@@ -14,7 +14,7 @@ export interface FBXModel {
 const loader = new FBXLoader();
 
 export const CLASS_MODELS: Record<string, string> = {
-  warrior: "/pjs/Characters/fbx/Knight.fbx",
+  warrior: "/Warriorfixed.fbx",
   paladin: "/pjs/Characters/fbx/Knight.fbx",
   assassin: "/pjs/Characters/fbx/Rogue_Hooded.fbx",
   hunter: "/pjs/Characters/fbx/Ranger.fbx",
@@ -173,8 +173,8 @@ export async function loadClassModel(
     }
   });
 
-  // 3. Aplicar textura base del personaje
-  if (texturePath) {
+  // 3. Aplicar textura base del personaje (skip for warrior as it has embedded textures)
+  if (texturePath && classId !== "warrior") {
     const textureLoader = new THREE.TextureLoader();
     try {
       const texture = await textureLoader.loadAsync(texturePath);
@@ -196,8 +196,8 @@ export async function loadClassModel(
     }
   }
 
-  // 4. Cargar y acoplar el arma
-  if (weaponPath && WEAPON_CONFIG[classId]) {
+  // 4. Cargar y acoplar el arma (skip for warrior as it has embedded weapons)
+  if (weaponPath && WEAPON_CONFIG[classId] && classId !== "warrior") {
     try {
       const config = WEAPON_CONFIG[classId];
       const weaponFBX = await loader.loadAsync(weaponPath);
@@ -241,8 +241,8 @@ export async function loadClassModel(
     }
   }
 
-  // 5. Cargar y acoplar el escudo (si existe)
-  if (shieldPath && WEAPON_CONFIG[classId]?.shield) {
+  // 5. Cargar y acoplar el escudo (si existe, skip for warrior as it has embedded assets)
+  if (shieldPath && WEAPON_CONFIG[classId]?.shield && classId !== "warrior") {
     try {
       const config = WEAPON_CONFIG[classId]!;
       const shieldConfig = config.shield!;
@@ -276,20 +276,27 @@ export async function loadClassModel(
   const mixer = new THREE.AnimationMixer(object);
   const animations = new Map<string, THREE.AnimationClip>();
 
-  try {
-    const generalAnim = await loader.loadAsync(ANIMATION_FILES.general);
-    generalAnim.animations.forEach((clip) => animations.set(clip.name, clip));
-    console.log(`[FBX Loader] Loaded ${generalAnim.animations.length} general animations:`, generalAnim.animations.map(a => a.name));
-  } catch (e) {
-    console.warn("Failed to load general animations:", e);
-  }
+  // Check if the model has embedded animations (like Warriorfixed.fbx)
+  if (object.animations && object.animations.length > 0) {
+    object.animations.forEach((clip) => animations.set(clip.name, clip));
+    console.log(`[FBX Loader] Using ${object.animations.length} embedded animations from model:`, object.animations.map(a => a.name));
+  } else {
+    // Fall back to loading separate animation files
+    try {
+      const generalAnim = await loader.loadAsync(ANIMATION_FILES.general);
+      generalAnim.animations.forEach((clip) => animations.set(clip.name, clip));
+      console.log(`[FBX Loader] Loaded ${generalAnim.animations.length} general animations:`, generalAnim.animations.map(a => a.name));
+    } catch (e) {
+      console.warn("Failed to load general animations:", e);
+    }
 
-  try {
-    const movementAnim = await loader.loadAsync(ANIMATION_FILES.movement);
-    movementAnim.animations.forEach((clip) => animations.set(clip.name, clip));
-    console.log(`[FBX Loader] Loaded ${movementAnim.animations.length} movement animations:`, movementAnim.animations.map(a => a.name));
-  } catch (e) {
-    console.warn("Failed to load movement animations:", e);
+    try {
+      const movementAnim = await loader.loadAsync(ANIMATION_FILES.movement);
+      movementAnim.animations.forEach((clip) => animations.set(clip.name, clip));
+      console.log(`[FBX Loader] Loaded ${movementAnim.animations.length} movement animations:`, movementAnim.animations.map(a => a.name));
+    } catch (e) {
+      console.warn("Failed to load movement animations:", e);
+    }
   }
 
   console.log(`[FBX Loader] Total animations available for ${classId}:`, Array.from(animations.keys()));
@@ -380,74 +387,84 @@ export function playAnimation(model: FBXModel, name: string, loop = true, speed 
 }
 
 /**
+ * Helper function to find the best matching animation name from a list of possibilities
+ */
+function findAnimationName(model: FBXModel, possibleNames: string[]): string | null {
+  for (const name of possibleNames) {
+    if (model.animations.has(name)) {
+      return name;
+    }
+  }
+  return null;
+}
+
+/**
  * Cambia la animación basándose en el estado del personaje con transiciones y velocidades óptimas
  */
-export function setAnimationByState(model: FBXModel, state: string, moveSpeed = 0) {
+export function setAnimationByState(model: FBXModel, state: string, moveSpeed = 0, isRunning = false) {
   let animName = "Idle_A";
   let loop = true;
   let speed = 1.0;
 
   switch (state) {
     case "idle":
-      animName = "Idle_A";
+      animName = findAnimationName(model, ["Idle", "Idle_A", "Stand", "Wait"]) || "Idle_A";
       loop = true;
       speed = 1.0;
       break;
     case "walk":
-      animName = "Walking_A";
+      animName = findAnimationName(model, ["Walk", "Walking", "Walking_A", "Forward"]) || "Walking_A";
       loop = true;
       speed = 1.1;
       break;
     case "run":
-      animName = "Running_A";
+      animName = findAnimationName(model, ["Run", "Running", "Running_A", "Sprint"]) || "Running_A";
       loop = true;
       speed = 1.25;
       break;
     case "attack":
-      // "Use_Item" realiza un tajo/golpe activo hacia adelante con el arma equipada.
-      // Velocidad 2.4x para que el golpe se complete con impacto dentro del ciclo de ataque (~0.55s).
-      animName = model.animations.has("Use_Item") ? "Use_Item" : "Throw";
+      // Try multiple attack animation names
+      animName = findAnimationName(model, ["Attack", "Attack_01", "Attack_1", "Melee", "Slash", "Strike", "Use_Item", "Throw"]) || "Attack";
       loop = false;
       speed = 2.4;
       break;
     case "cast":
-      // "Interact" o "Throw" proyecta las manos hacia el objetivo para hechizos
-      animName = model.animations.has("Interact") ? "Interact" : "Throw";
+      animName = findAnimationName(model, ["Cast", "Spell", "Magic", "Interact", "Throw"]) || "Cast";
       loop = false;
       speed = 2.0;
       break;
     case "channel":
-      animName = model.animations.has("Interact") ? "Interact" : "Idle_A";
+      animName = findAnimationName(model, ["Channel", "Cast", "Idle", "Idle_A"]) || "Idle_A";
       loop = true;
       speed = 1.0;
       break;
     case "hit":
-      animName = "Hit_A";
+      animName = findAnimationName(model, ["Hit", "Hit_A", "Damage", "TakeDamage"]) || "Hit_A";
       loop = false;
       speed = 1.8;
       break;
     case "death":
-      animName = "Death_A";
+      animName = findAnimationName(model, ["Death", "Death_A", "Die", "Fall"]) || "Death_A";
       loop = false;
       speed = 1.0;
       break;
     case "jump_start":
-      animName = "Jump_Start";
+      animName = findAnimationName(model, ["Jump_Start", "JumpUp", "Jump"]) || "Jump_Start";
       loop = false;
       speed = 1.2;
       break;
     case "jump_idle":
-      animName = "Jump_Idle";
+      animName = findAnimationName(model, ["Jump_Idle", "JumpLoop", "JumpAir"]) || "Jump_Idle";
       loop = true;
       speed = 1.0;
       break;
     case "jump_land":
-      animName = "Jump_Land";
+      animName = findAnimationName(model, ["Jump_Land", "JumpDown", "Land"]) || "Jump_Land";
       loop = false;
       speed = 1.4;
       break;
     default:
-      animName = "Idle_A";
+      animName = findAnimationName(model, ["Idle", "Idle_A"]) || "Idle_A";
       break;
   }
 

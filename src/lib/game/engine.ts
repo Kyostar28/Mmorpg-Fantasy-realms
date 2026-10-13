@@ -320,11 +320,14 @@ export class GameEngine {
       const secondaryColor = this.rec.secondaryColor || this.cls.armor;
       this.fbxModel = await loadClassModel(this.cls.id, primaryColor, secondaryColor);
       this.pObj.add(this.fbxModel.root);
-      
+
       // Scale the model based on race
       const scale = this.race.scale * 0.92;
       this.fbxModel.root.scale.setScalar(scale);
-      
+
+      // Store reference to engine for key access in animation
+      const engine = this;
+
       // Store animation mixer reference
       this.model = {
         root: this.fbxModel.root,
@@ -332,8 +335,8 @@ export class GameEngine {
         radius: 0.6 * scale,
         animate: (dt: number, t: number, s: AnimState) => {
           // Update FBX animation mixer
-          if (this.fbxModel) {
-            this.fbxModel.mixer.update(dt);
+          if (engine.fbxModel) {
+            engine.fbxModel.mixer.update(dt);
 
             // Determine animation state
             let animState = "idle";
@@ -348,11 +351,14 @@ export class GameEngine {
             } else if (s.action === "channel") {
               animState = "channel";
             } else if (s.speed > 0.1) {
-              animState = s.speed > 0.7 ? "run" : "walk";
+              // Check if running (W + R pressed)
+              const isRunning = (engine.keys.has("w") || engine.keys.has("arrowup")) && engine.keys.has("r");
+              animState = (isRunning || s.speed > 0.6) ? "run" : "walk";
             }
 
             // Set animation based on state
-            setAnimationByState(this.fbxModel, animState, s.speed);
+            const isRunning = (engine.keys.has("w") || engine.keys.has("arrowup")) && engine.keys.has("r");
+            setAnimationByState(engine.fbxModel, animState, s.speed, isRunning);
           }
         },
         dispose: () => {
@@ -1200,6 +1206,8 @@ export class GameEngine {
       if (k.has("s") || k.has("arrowdown")) dir.sub(fwd);
       if (k.has("a") || k.has("arrowleft")) dir.sub(right);
       if (k.has("d") || k.has("arrowright")) dir.add(right);
+      // Check for running (W + R)
+      const isRunning = (k.has("w") || k.has("arrowup")) && k.has("r");
       if (this.dash) {
         this.dash.t += dt;
         const step = this.dash.to.clone().sub(this.pos).setY(0);
@@ -1216,7 +1224,9 @@ export class GameEngine {
         const back = (k.has("s") || k.has("arrowdown")) && !(k.has("w") || k.has("arrowup"));
         const groundH = heightAt(this.pos.x, this.pos.z);
         const swimming = groundH < -1.3;
-        const sp = 9.5 * this.speedMult() * (back ? 0.6 : 1) * (swimming ? 0.6 : 1);
+        // Increase speed when running (W + R)
+        const runMultiplier = isRunning ? 1.6 : 1;
+        const sp = 9.5 * this.speedMult() * (back ? 0.6 : 1) * (swimming ? 0.6 : 1) * runMultiplier;
         let nx = this.pos.x + dir.x * sp * dt, nz = this.pos.z + dir.z * sp * dt;
         // slope limit
         const nh = heightAt(nx, nz);
