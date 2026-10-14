@@ -181,7 +181,7 @@ export default function CreatePage() {
                 ))}
               </div>
               <p className="mt-1 text-xs text-stone-500">
-                {graphics === "low" ? "-70% rendimiento: ideal para dispositivos antiguos" : graphics === "normal" ? "Equilibrado: calidad y rendimiento" : "Máxima calidad: requiere GPU potente"}
+                {graphics === "low" ? "HD con visión reducida: menor distancia de dibujado para optimizar rendimiento" : graphics === "normal" ? "Equilibrado: calidad y rendimiento" : "Máxima calidad: requiere GPU potente"}
               </p>
               <p className="mt-4 font-display text-xs tracking-widest text-amber-400/80">COLOR PRINCIPAL</p>
               <div className="mt-2 grid grid-cols-6 gap-1.5">

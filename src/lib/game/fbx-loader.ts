@@ -76,8 +76,8 @@ export const WEAPON_CONFIG: Record<string, WeaponSlotConfig> = {
   warrior: {
     hand: "right",
     scale: 0.38,
-    position: [0, -10, 20], // Agarre centrado en la mano
-    rotation: [3.4, 0.2, 1.1], // Horizontal hacia adelante
+    position: [0, -0.4, 0.2], // Centro del martillo aproximadamente en la mano
+    rotation: [Math.PI / 2, 0, 0.1], // Mango hacia abajo, cabeza hacia adelante (rotación natural de un martillo sostenido)
   },
   // Paladín (Espada en mano derecha + Escudo en mano izquierda)
   paladin: {
@@ -158,13 +158,12 @@ function getBoneSlot(character: THREE.Object3D, side: "r" | "l"): THREE.Bone | n
 
 /**
  * Genera una animación de reposo (idle) natural con respiración sutil y postura de combate
- * para evitar que el modelo quede estático en T-pose.
+ * para evitar que el modelo quede estático en T-pose. Usa la pose actual de los huesos
+ * (la pose del modelo al cargar, que es la pose base exportada de Mixamo).
  */
-function createWarriorIdleClip(character: THREE.Object3D, walkClip: THREE.AnimationClip): THREE.AnimationClip {
-  const mixer = new THREE.AnimationMixer(character);
-  const action = mixer.clipAction(walkClip);
-  action.play();
-  mixer.setTime(0.0); // Postura erguida con pies en suelo y brazos abajo relajados
+function createWarriorIdleClip(character: THREE.Object3D): THREE.AnimationClip {
+  // Usar la pose base del modelo (la pose con la que se cargó el FBX, generalmente
+  // la pose de "Stand" o A-pose de Mixamo, que es la mejor aproximación a un reposo natural)
   character.updateMatrixWorld(true);
 
   const duration = 2.4;
@@ -177,12 +176,13 @@ function createWarriorIdleClip(character: THREE.Object3D, walkClip: THREE.Animat
       const q = child.quaternion.clone();
       const s = child.scale.clone();
 
-      // Respiración sutil en torso y cabeza
+      // Respiración sutil SOLO en la columna (Spine), no en la cabeza
+      // (la cabeza debe permanecer estable para evitar movimientos bruscos)
       let pValues: number[];
-      if (child.name.includes("Spine") || child.name.includes("Head")) {
+      if (child.name.toLowerCase().includes("spine")) {
         pValues = [
           p.x, p.y, p.z,
-          p.x, p.y + 0.8, p.z,
+          p.x, p.y + 0.015, p.z,  // Movimiento vertical muy sutil (1.5cm)
           p.x, p.y, p.z,
         ];
       } else {
@@ -190,10 +190,11 @@ function createWarriorIdleClip(character: THREE.Object3D, walkClip: THREE.Animat
       }
       tracks.push(new THREE.VectorKeyframeTrack(`${child.name}.position`, times, pValues));
 
-      // Rotación sutil de respiración en columna
+      // Rotación sutil de respiración en columna (Spine1 y Spine2)
       let qValues: number[];
-      if (child.name === "mixamorigSpine1" || child.name === "mixamorigSpine2") {
-        const qBreathe = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.02));
+      const nameLower = child.name.toLowerCase();
+      if (nameLower === "mixamorigspine1" || nameLower === "mixamorigspine2" || nameLower === "spine1" || nameLower === "spine2") {
+        const qBreathe = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.015));
         qValues = [
           q.x, q.y, q.z, q.w,
           qBreathe.x, qBreathe.y, qBreathe.z, qBreathe.w,
@@ -207,7 +208,6 @@ function createWarriorIdleClip(character: THREE.Object3D, walkClip: THREE.Animat
     }
   });
 
-  mixer.stopAllAction();
   return new THREE.AnimationClip("Warrior_Idle", duration, tracks);
 }
 
@@ -278,14 +278,16 @@ export async function loadClassModel(
           child.geometry.computeVertexNormals();
 
           if (classId === "warrior") {
-            // Material PBR estándar para guerrero con relieve 3D y brillo
+            // Material PBR para guerrero: armadura mate con relieve 3D.
+            // Valores equilibrados para que los colores del mapa se respeten
+            // y no se oscurezcan por reflejo del ambiente del juego.
             child.material = new THREE.MeshStandardMaterial({
               map: texture,
               normalMap: normalTexture || undefined,
-              normalScale: new THREE.Vector2(1.5, 1.5),
-              color: new THREE.Color(0xffffff), // Base pura blanca sin tinte gris
-              roughness: 0.35, // Deslizador de rugosidad en 0.35 para reflejo y volumen
-              metalness: 0.6, // Reflejo metálico de armadura
+              normalScale: new THREE.Vector2(1.2, 1.2),
+              color: new THREE.Color(0xffffff), // Base blanca: respeta el color del mapa de texturas
+              roughness: 0.7, // Rugoso: no refleja el ambiente oscuro, mantiene los colores reales
+              metalness: 0.15, // Apenas metálico: volumen sutil sin "espejo" que oscurece
               flatShading: false, // Suavizado de sombreado (Shade Smooth)
             });
             child.castShadow = true;
@@ -484,12 +486,18 @@ export async function loadClassModel(
         animations.set("Death", clip);
         animations.set("Dead", clip);
       }
+      // Detectar clip de "idle" embebido (Idle, Idle_A, etc.) — útil para modelos Mixamo
+      if (lower === "idle" || lower.startsWith("idle|") || lower === "idle_a" || lower === "stand" || lower === "wait") {
+        animations.set("idle", clip);
+        animations.set("Idle", clip);
+        animations.set("Idle_A", clip);
+      }
     });
 
-    // Generar animación natural de reposo (idle) para el guerrero para eliminar el T-pose
-    const walkClip = object.animations.find((c) => c.name.toLowerCase().includes("walking"));
-    if (walkClip) {
-      const idleClip = createWarriorIdleClip(object, walkClip);
+    // Si el modelo no trae un clip de "idle" embebido, generar uno procedural
+    // con respiración sutil para evitar que quede en T-pose
+    if (!animations.has("idle") && classId === "warrior") {
+      const idleClip = createWarriorIdleClip(object);
       animations.set("idle", idleClip);
       animations.set("Idle", idleClip);
       animations.set("Idle_A", idleClip);

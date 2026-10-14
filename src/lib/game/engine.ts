@@ -139,6 +139,7 @@ export class GameEngine {
   private camYaw = 0;
   private camPitch = 0.32;
   private camDist = 11;
+  private graphicsMode: "low" | "normal" | "high" = "normal";
   private drag: { x: number; y: number; moved: number; button: number } | null = null;
   private raycaster = new THREE.Raycaster();
   private saveTimer = 15;
@@ -168,7 +169,8 @@ export class GameEngine {
     await step("Preparando el renderizador…", 5);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     const graphics = this.rec.graphics ?? "normal";
-    const pixelRatio = graphics === "low" ? 0.3 : graphics === "high" ? window.devicePixelRatio : Math.min(window.devicePixelRatio, 1.5);
+    this.graphicsMode = graphics;
+    const pixelRatio = graphics === "high" ? window.devicePixelRatio : Math.min(window.devicePixelRatio, 1.5);
     this.renderer.setPixelRatio(pixelRatio);
     if (!this.container) throw new Error("Container is null");
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
@@ -178,9 +180,12 @@ export class GameEngine {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.container.appendChild(this.renderer.domElement);
-    this.camera = new THREE.PerspectiveCamera(58, this.container.clientWidth / this.container.clientHeight, 0.2, 5000);
+    const farPlane = graphics === "low" ? 600 : 5000;
+    this.camera = new THREE.PerspectiveCamera(58, this.container.clientWidth / this.container.clientHeight, 0.2, farPlane);
 
-    this.scene.fog = new THREE.Fog("#0d2a33", 40, 260);
+    const fogNear = graphics === "low" ? 25 : 40;
+    const fogFar = graphics === "low" ? 130 : 260;
+    this.scene.fog = new THREE.Fog("#0d2a33", fogNear, fogFar);
     this.hemi = new THREE.HemisphereLight("#9fd8ff", "#203030", 0.9);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight("#ffffff", 2);
@@ -1560,8 +1565,13 @@ export class GameEngine {
     });
     const fog = this.scene.fog as THREE.Fog;
     fog.color.copy(a.fog);
-    fog.near = 30 + w[1] * 40;
-    fog.far = 230 + w[1] * 120;
+    if (this.graphicsMode === "low") {
+      fog.near = 20 + w[1] * 15;
+      fog.far = 110 + w[1] * 40;
+    } else {
+      fog.near = 30 + w[1] * 40;
+      fog.far = 230 + w[1] * 120;
+    }
     this.renderer.setClearColor(a.fog);
     const sunDir = new THREE.Vector3(0.35, 0.75 - w[2] * 0.4, 0.3 + w[2] * 0.3).normalize();
     this.skyU.top.value.copy(a.sky).multiplyScalar(0.6);
@@ -1612,7 +1622,9 @@ export class GameEngine {
     const want = focus.clone().add(new THREE.Vector3(Math.sin(this.camYaw) * cp * this.camDist, Math.sin(this.camPitch) * this.camDist, Math.cos(this.camYaw) * cp * this.camDist));
     const gh = Math.max(heightAt(want.x, want.z), 0) + 0.6;
     if (want.y < gh) want.y = gh;
-    this.camera.position.lerp(want, Math.min(1, dt * 14));
+    // Frame-rate independent smoothing: equivalent to lerp(want, 0.23/frame at 60fps)
+    const lerpT = 1 - Math.pow(1 - 0.23, dt * 60);
+    this.camera.position.lerp(want, lerpT);
     this.camera.lookAt(focus);
   }
 
