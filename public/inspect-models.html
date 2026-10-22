@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inspect FBX Bones</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        .model { margin: 20px 0; padding: 15px; background: #2a2a2a; border-radius: 8px; }
+        h2 { color: #ffd700; }
+        pre { background: #333; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>FBX Bone Inspector</h1>
+    <div id="output"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+        const loader = new FBXLoader();
+        const output = document.getElementById('output');
+
+        const models = [
+            { name: 'Knight (Warrior/Paladin)', path: '/pjs/Characters/fbx/Knight.fbx' },
+            { name: 'Mage (Mage/Warlock)', path: '/pjs/Characters/fbx/Mage.fbx' },
+            { name: 'Ranger (Hunter)', path: '/pjs/Characters/fbx/Ranger.fbx' },
+            { name: 'Rogue_Hooded (Assassin)', path: '/pjs/Characters/fbx/Rogue_Hooded.fbx' },
+        ];
+
+        async function inspectModel(model) {
+            try {
+                const object = await loader.loadAsync(model.path);
+                const boneNames = [];
+                object.traverse((child) => {
+                    if (child.name) {
+                        boneNames.push(child.name);
+                    }
+                });
+
+                const handBones = boneNames.filter(n => n.toLowerCase().includes('hand'));
+                const weaponBones = boneNames.filter(n => n.toLowerCase().includes('weapon'));
+                const rightBones = boneNames.filter(n => n.toLowerCase().includes('right') || n.includes('R_'));
+
+                const div = document.createElement('div');
+                div.className = 'model';
+                div.innerHTML = `
+                    <h2>${model.name}</h2>
+                    <h3>All Bones (${boneNames.length}):</h3>
+                    <pre>${boneNames.join('\n')}</pre>
+                    <h3>Hand-related: ${handBones.length || 'none'}</h3>
+                    <pre>${handBones.join('\n') || 'No hand bones found'}</pre>
+                    <h3>Weapon-related: ${weaponBones.length || 'none'}</h3>
+                    <pre>${weaponBones.join('\n') || 'No weapon bones found'}</pre>
+                    <h3>Right-related: ${rightBones.length || 'none'}</h3>
+                    <pre>${rightBones.join('\n') || 'No right bones found'}</pre>
+                `;
+                output.appendChild(div);
+                console.log(`=== ${model.name} ===`);
+                console.log('All bones:', boneNames);
+                console.log('Hand bones:', handBones);
+                console.log('Weapon bones:', weaponBones);
+                console.log('Right bones:', rightBones);
+            } catch (e) {
+                console.error(`Error loading ${model.name}:`, e);
+                const div = document.createElement('div');
+                div.className = 'model';
+                div.innerHTML = `<h2>${model.name}</h2><p style="color: red">Error: ${e.message}</p>`;
+                output.appendChild(div);
+            }
+        }
+
+        for (const model of models) {
+            await inspectModel(model);
+        }
+    </script>
+</body>
+</html>
