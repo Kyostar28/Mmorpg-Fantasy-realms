@@ -419,59 +419,59 @@ function buildLowPolyCharacterWrapper(race: RaceDef, cls: ClassDef): Model {
 
   // Equip items based on class
   if (cls.id === "paladin") {
-    // Equip helmet (plate style)
+    // Equip helmet (dark plate armor with red plume like the image)
     char.equip('helmet', {
       slot: 'helmet',
       style: 'plate',
-      visualColor: cls.armor,
-      secondaryColor: cls.trim,
+      visualColor: '#2a2a2a', // Dark metallic
+      secondaryColor: '#3a3a3a',
     });
 
-    // Equip chest armor
+    // Equip chest armor (dark plate armor)
     char.equip('chest', {
       slot: 'chest',
-      visualColor: cls.armor,
-      secondaryColor: cls.trim,
+      visualColor: '#2a2a2a', // Dark metallic
+      secondaryColor: '#3a3a3a',
     });
 
-    // Equip cape (paladin specific)
+    // Equip cape (paladin specific - dark red like the plume)
     char.equip('cape', {
       slot: 'cape',
-      visualColor: "#7a1424",
-      secondaryColor: cls.trim,
+      visualColor: "#b91c1c", // Dark red matching the plume
+      secondaryColor: '#3a3a3a',
     });
 
-    // Equip gloves
+    // Equip gloves (dark plate)
     char.equip('gloves', {
       slot: 'gloves',
-      visualColor: cls.armor,
+      visualColor: '#2a2a2a',
     });
 
-    // Equip pants
+    // Equip pants (dark plate)
     char.equip('pants', {
       slot: 'pants',
-      visualColor: cls.armor,
+      visualColor: '#2a2a2a',
     });
 
-    // Equip boots
+    // Equip boots (dark plate)
     char.equip('boots', {
       slot: 'boots',
-      visualColor: "#334155",
+      visualColor: '#2a2a2a',
     });
 
-    // Equip weapon (hammer for paladin)
+    // Equip weapon (greatsword like the image)
     char.equip('weapon', {
       slot: 'weapon',
       weaponType: 'sword',
-      visualColor: '#cbd5e1',
-      secondaryColor: cls.trim,
+      visualColor: '#cbd5e1', // Polished steel
+      secondaryColor: '#8a8a8a',
     });
 
-    // Equip shield (paladin specific)
+    // Equip shield (keep original shield design)
     char.equip('shield', {
       slot: 'shield',
       visualColor: '#1e3a8a',
-      secondaryColor: cls.trim,
+      secondaryColor: '#3a3a3a',
     });
   }
 

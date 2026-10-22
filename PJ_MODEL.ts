@@ -251,39 +251,77 @@ export function buildPolygonalWeapon(config: VisualItemConfig): THREE.Group {
   const secColor = config.secondaryColor || '#f59e0b';
 
   if (weaponType === 'sword') {
-    // Hoja afilada biselada
-    const bladeGeo = new THREE.BoxGeometry(0.08, 0.95, 0.03);
-    const bladeMat = matCache.get(color, 0.15, 0.85);
-    const blade = new THREE.Mesh(bladeGeo, bladeMat);
-    blade.position.set(0, 0.45, 0);
+    // Greatsword/Longsword - estilo de la imagen
+    // Hoja larga y recta con fuller (surco central)
+    const bladeMat = matCache.get(color, 0.12, 0.9); // Más brillante, metálico
+
+    // Hoja principal
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.10, 1.15, 0.04),
+      bladeMat
+    );
+    blade.position.set(0, 0.55, 0);
     blade.castShadow = true;
     group.add(blade);
 
-    // Punta afilada triangular
-    const tipGeo = new THREE.ConeGeometry(0.055, 0.18, 4);
-    const tip = new THREE.Mesh(tipGeo, bladeMat);
-    tip.position.set(0, 0.95, 0);
+    // Fuller (surco central) - detalle de la hoja
+    const fuller = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 0.85, 0.05),
+      matCache.get('#8a8a8a', 0.3, 0.7)
+    );
+    fuller.position.set(0, 0.45, 0.03);
+    group.add(fuller);
+
+    // Punta afilada
+    const tip = new THREE.Mesh(
+      new THREE.ConeGeometry(0.06, 0.22, 4),
+      bladeMat
+    );
+    tip.position.set(0, 1.15, 0);
     tip.rotation.y = Math.PI / 4;
     group.add(tip);
 
-    // Guarda cruzada
-    const guardGeo = new THREE.BoxGeometry(0.32, 0.05, 0.08);
-    const guardMat = matCache.get(secColor, 0.3, 0.8);
-    const guard = new THREE.Mesh(guardGeo, guardMat);
+    // Crossguard recta y simple (como en la imagen)
+    const guardMat = matCache.get(secColor, 0.25, 0.85);
+    const guard = new THREE.Mesh(
+      new THREE.BoxGeometry(0.38, 0.06, 0.10),
+      guardMat
+    );
     guard.position.set(0, 0.02, 0);
     group.add(guard);
 
-    // Empuñadura de cuero
-    const gripGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.22, 8);
-    const gripMat = matCache.get('#451a03', 0.7, 0.1);
-    const grip = new THREE.Mesh(gripGeo, gripMat);
-    grip.position.set(0, -0.11, 0);
+    // Extremos del crossguard ligeramente curvados hacia abajo
+    const guardEndL = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.06, 0.12),
+      guardMat
+    );
+    guardEndL.position.set(0.20, 0.02, 0);
+    guardEndL.rotation.z = 0.15;
+    group.add(guardEndL);
+
+    const guardEndR = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.06, 0.12),
+      guardMat
+    );
+    guardEndR.position.set(-0.20, 0.02, 0);
+    guardEndR.rotation.z = -0.15;
+    group.add(guardEndR);
+
+    // Empuñadura larga de dos manos (cuero enrollado)
+    const gripMat = matCache.get('#2a1810', 0.8, 0.1);
+    const grip = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 0.35, 8),
+      gripMat
+    );
+    grip.position.set(0, -0.17, 0);
     group.add(grip);
 
-    // Pomo
-    const pommelGeo = new THREE.SphereGeometry(0.045, 8, 8);
-    const pommel = new THREE.Mesh(pommelGeo, guardMat);
-    pommel.position.set(0, -0.22, 0);
+    // Pomo de rueda/disc (como en la imagen)
+    const pommel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.055, 0.04, 12),
+      guardMat
+    );
+    pommel.position.set(0, -0.35, 0);
     group.add(pommel);
   } else if (weaponType === 'axe') {
     // Mango de madera reforzada
@@ -517,13 +555,13 @@ export function buildPolygonalCape(config: VisualItemConfig): THREE.Group {
 
 export function buildPolygonalHelmet(config: VisualItemConfig): THREE.Group {
   const group = new THREE.Group();
-  const color = config.visualColor || '#94a3b8';
-  const secColor = config.secondaryColor || '#cbd5e1';
+  const color = config.visualColor || '#2a2a2a'; // Dark metallic like the image
+  const secColor = config.secondaryColor || '#3a3a3a';
   const style = config.style || (config.id?.includes('wizard') ? 'wizard' : config.id?.includes('viking') ? 'viking' : 'plate');
 
   if (style === 'plate') {
-    // Casco de Caballero con Visor y Penacho
-    const helmMat = matCache.get(color, 0.25, 0.85);
+    // Dark plate armor helmet with red plume (like the image)
+    const helmMat = matCache.get(color, 0.4, 0.8); // Darker, more metallic
     const dome = new THREE.Mesh(
       new THREE.SphereGeometry(0.24, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.7),
       helmMat
@@ -531,27 +569,48 @@ export function buildPolygonalHelmet(config: VisualItemConfig): THREE.Group {
     dome.position.set(0, 0.04, 0);
     group.add(dome);
 
-    // Visor frontal con ranura
-    const visorMat = matCache.get(secColor, 0.2, 0.9);
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.16), visorMat);
+    // Visor frontal más detallado - estilo gótico
+    const visorMat = matCache.get(secColor, 0.3, 0.85);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, 0.18), visorMat);
     visor.position.set(0, 0.02, 0.15);
     group.add(visor);
 
-    // Ranura de visión oscura
+    // Ranura de visión horizontal más larga
     const slit = new THREE.Mesh(
-      new THREE.BoxGeometry(0.22, 0.025, 0.05),
-      matCache.get('#09090b', 0.9, 0.1)
+      new THREE.BoxGeometry(0.24, 0.02, 0.06),
+      matCache.get('#0a0a0a', 0.95, 0.1)
     );
-    slit.position.set(0, 0.02, 0.22);
+    slit.position.set(0, 0.02, 0.24);
     group.add(slit);
 
-    // Penacho / Cresta superior
-    const crest = new THREE.Mesh(
-      new THREE.BoxGeometry(0.04, 0.12, 0.28),
-      matCache.get('#ef4444', 0.5, 0.1)
+    // Penacho de plumas rojas (como en la imagen)
+    const plumeMat = matCache.get('#b91c1c', 0.6, 0.1); // Dark red feathers
+    const plume = new THREE.Mesh(
+      new THREE.ConeGeometry(0.06, 0.35, 8),
+      plumeMat
     );
-    crest.position.set(0, 0.24, 0);
-    group.add(crest);
+    plume.position.set(0, 0.32, 0);
+    plume.rotation.z = 0.1;
+    group.add(plume);
+
+    // Plumas adicionales para más volumen
+    const plume2 = new THREE.Mesh(
+      new THREE.ConeGeometry(0.05, 0.28, 8),
+      plumeMat
+    );
+    plume2.position.set(0.04, 0.30, 0);
+    plume2.rotation.z = 0.15;
+    plume2.rotation.x = 0.1;
+    group.add(plume2);
+
+    const plume3 = new THREE.Mesh(
+      new THREE.ConeGeometry(0.05, 0.28, 8),
+      plumeMat
+    );
+    plume3.position.set(-0.04, 0.30, 0);
+    plume3.rotation.z = -0.15;
+    plume3.rotation.x = 0.1;
+    group.add(plume3);
   } else if (style === 'wizard') {
     // Sombrero Cónico de Mago con Ala Ancha
     const hatMat = matCache.get(color, 0.6, 0.1);
@@ -597,34 +656,61 @@ export function buildPolygonalHelmet(config: VisualItemConfig): THREE.Group {
 
 export function buildPolygonalChest(config: VisualItemConfig): THREE.Group {
   const group = new THREE.Group();
-  const color = config.visualColor || '#64748b';
-  const secColor = config.secondaryColor || '#f59e0b';
+  const color = config.visualColor || '#2a2a2a'; // Dark plate armor
+  const secColor = config.secondaryColor || '#3a3a3a';
 
-  const chestMat = matCache.get(color, 0.3, 0.7);
-  const trimMat = matCache.get(secColor, 0.2, 0.85);
+  const chestMat = matCache.get(color, 0.35, 0.8); // Dark metallic
+  const trimMat = matCache.get(secColor, 0.25, 0.85);
 
-  // Coraza de torso
-  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.28), chestMat);
+  // Coraza principal de placas oscuras
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.46, 0.30), chestMat);
   plate.position.set(0, 0, 0.01);
   plate.castShadow = true;
   group.add(plate);
 
-  // Emblema central de protección
-  const crest = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.3), trimMat);
-  crest.position.set(0, 0.02, 0.01);
-  group.add(crest);
+  // Detalle de crestas/flautas en el pecho (como en la imagen)
+  const ridgeLeft = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.38, 0.04), trimMat);
+  ridgeLeft.position.set(-0.12, 0, 0.05);
+  group.add(ridgeLeft);
 
-  // Hombrera izquierda (Pauldron)
-  const leftPauldron = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 8), trimMat);
-  leftPauldron.scale.set(1.2, 0.9, 1.2);
-  leftPauldron.position.set(0.26, 0.18, 0);
+  const ridgeRight = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.38, 0.04), trimMat);
+  ridgeRight.position.set(0.12, 0, 0.05);
+  group.add(ridgeRight);
+
+  // Cinturón de cuero en la cintura
+  const beltMat = matCache.get('#451a03', 0.7, 0.1);
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.06, 0.32), beltMat);
+  belt.position.set(0, -0.22, 0.02);
+  group.add(belt);
+
+  // Hebilla del cinturón
+  const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.06), trimMat);
+  buckle.position.set(0, -0.22, 0.18);
+  group.add(buckle);
+
+  // Hombrera izquierda (Pauldron) - placas superpuestas
+  const leftPauldron = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), trimMat);
+  leftPauldron.scale.set(1.3, 0.85, 1.3);
+  leftPauldron.position.set(0.28, 0.20, 0);
   group.add(leftPauldron);
 
-  // Hombrera derecha (Pauldron)
-  const rightPauldron = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 8), trimMat);
-  rightPauldron.scale.set(1.2, 0.9, 1.2);
-  rightPauldron.position.set(-0.26, 0.18, 0);
+  // Placa adicional en la hombrera izquierda
+  const leftPauldron2 = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 8), trimMat);
+  leftPauldron2.scale.set(1.2, 0.8, 1.2);
+  leftPauldron2.position.set(0.28, 0.08, 0.02);
+  group.add(leftPauldron2);
+
+  // Hombrera derecha (Pauldron) - placas superpuestas
+  const rightPauldron = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), trimMat);
+  rightPauldron.scale.set(1.3, 0.85, 1.3);
+  rightPauldron.position.set(-0.28, 0.20, 0);
   group.add(rightPauldron);
+
+  // Placa adicional en la hombrera derecha
+  const rightPauldron2 = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 8), trimMat);
+  rightPauldron2.scale.set(1.2, 0.8, 1.2);
+  rightPauldron2.position.set(-0.28, 0.08, 0.02);
+  group.add(rightPauldron2);
 
   return group;
 }

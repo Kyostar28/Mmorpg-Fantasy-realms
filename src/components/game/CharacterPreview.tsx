@@ -144,52 +144,52 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
             eyeColor: "#3b82f6",
           });
 
-          // Equip paladin gear
+          // Equip paladin gear (dark plate armor like the image)
           pjChar.equip('helmet', {
             slot: 'helmet',
             style: 'plate',
-            visualColor: c.armor,
-            secondaryColor: c.trim,
+            visualColor: '#2a2a2a', // Dark metallic
+            secondaryColor: '#3a3a3a',
           });
 
           pjChar.equip('chest', {
             slot: 'chest',
-            visualColor: c.armor,
-            secondaryColor: c.trim,
+            visualColor: '#2a2a2a', // Dark metallic
+            secondaryColor: '#3a3a3a',
           });
 
           pjChar.equip('cape', {
             slot: 'cape',
-            visualColor: "#7a1424",
-            secondaryColor: c.trim,
+            visualColor: "#b91c1c", // Dark red matching the plume
+            secondaryColor: '#3a3a3a',
           });
 
           pjChar.equip('gloves', {
             slot: 'gloves',
-            visualColor: c.armor,
+            visualColor: '#2a2a2a',
           });
 
           pjChar.equip('pants', {
             slot: 'pants',
-            visualColor: c.armor,
+            visualColor: '#2a2a2a',
           });
 
           pjChar.equip('boots', {
             slot: 'boots',
-            visualColor: "#334155",
+            visualColor: '#2a2a2a',
           });
 
           pjChar.equip('weapon', {
             slot: 'weapon',
             weaponType: 'sword',
-            visualColor: '#cbd5e1',
-            secondaryColor: c.trim,
+            visualColor: '#cbd5e1', // Polished steel
+            secondaryColor: '#8a8a8a',
           });
 
           pjChar.equip('shield', {
             slot: 'shield',
             visualColor: '#1e3a8a',
-            secondaryColor: c.trim,
+            secondaryColor: '#3a3a3a',
           });
 
           // Scale appropriately (increased by 50%)
@@ -241,48 +241,53 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
     // Update PJ character appearance (if human paladin)
     if (s.pjChar && race === "human" && cls === "paladin") {
       try {
-        const c = CLASSES.find((x) => x.id === cls)!;
-        // Re-equip items with new colors
+        // For paladin, keep the dark plate armor colors from the image
+        // Don't use user customization colors for armor
         s.pjChar.equip('helmet', {
           slot: 'helmet',
           style: 'plate',
-          visualColor: primaryColor,
-          secondaryColor: secondaryColor,
+          visualColor: '#2a2a2a', // Dark metallic
+          secondaryColor: '#3a3a3a',
         });
 
         s.pjChar.equip('chest', {
           slot: 'chest',
-          visualColor: primaryColor,
-          secondaryColor: secondaryColor,
+          visualColor: '#2a2a2a', // Dark metallic
+          secondaryColor: '#3a3a3a',
         });
 
         s.pjChar.equip('cape', {
           slot: 'cape',
-          visualColor: "#7a1424",
-          secondaryColor: secondaryColor,
+          visualColor: "#b91c1c", // Dark red matching the plume
+          secondaryColor: '#3a3a3a',
         });
 
         s.pjChar.equip('gloves', {
           slot: 'gloves',
-          visualColor: primaryColor,
+          visualColor: '#2a2a2a',
         });
 
         s.pjChar.equip('pants', {
           slot: 'pants',
-          visualColor: primaryColor,
+          visualColor: '#2a2a2a',
+        });
+
+        s.pjChar.equip('boots', {
+          slot: 'boots',
+          visualColor: '#2a2a2a',
         });
 
         s.pjChar.equip('weapon', {
           slot: 'weapon',
           weaponType: 'sword',
-          visualColor: '#cbd5e1',
-          secondaryColor: secondaryColor,
+          visualColor: '#cbd5e1', // Polished steel
+          secondaryColor: '#8a8a8a',
         });
 
         s.pjChar.equip('shield', {
           slot: 'shield',
           visualColor: '#1e3a8a',
-          secondaryColor: secondaryColor,
+          secondaryColor: '#3a3a3a',
         });
       } catch (e) {
         console.error("Failed to update PJ character colors:", e);
