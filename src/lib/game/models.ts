@@ -1,7 +1,7 @@
 // Procedural high-detail character & creature models with skeletal-style procedural animations.
 import * as THREE from "three";
 import type { ClassDef, MobDef, RaceDef } from "./data";
-import { createLowPolyCharacter, type LowPolyCharacter } from "../../PJ_MODEL";
+import { createLowPolyCharacter, type LowPolyCharacter } from "../../../PJ_MODEL";
 
 export interface AnimState {
   speed: number; // 0..1 movement blend
