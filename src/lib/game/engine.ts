@@ -102,7 +102,7 @@ export class GameEngine {
   private vy = 0;
   private onGround = true;
   private facing = 0;
-  private anim: AnimState = { speed: 0, action: null, actionT: 0, dead: false, deadT: 0 };
+  private anim: AnimState = { speed: 0, action: null, actionT: 0, dead: false, deadT: 0, dodgeDir: 1 };
   private level = 1;
   private xp = 0;
   private gold = 0;
@@ -978,7 +978,18 @@ export class GameEngine {
     if (this.dead) return;
     const raw = m.def.dmg * (1 + (m.level - m.def.level[0]) * 0.12) * (0.85 + Math.random() * 0.3);
     const dodge = Math.random() < 0.05 + this.stats.agi / 1500;
-    if (dodge) { this.floatText(this.pChest().add(new THREE.Vector3(0, 0.8, 0)), "Esquivar", "#ffffff", 16); return; }
+    if (dodge) {
+      this.floatText(this.pChest().add(new THREE.Vector3(0, 0.8, 0)), "Esquivar", "#ffffff", 16);
+      // Trigger dodge animation for PJ_MODEL (paladin)
+      if (this.race.id === "human" && this.cls.id === "paladin") {
+        // Random dodge direction
+        const dodgeDir = Math.random() < 0.5 ? -1 : 1;
+        this.anim.action = "dodge";
+        this.anim.actionT = 0;
+        this.anim.dodgeDir = dodgeDir;
+      }
+      return;
+    }
     const dmg = Math.max(1, Math.round(raw * (1 - this.stats.mitigation) * this.drMult()));
     this.hp -= dmg;
     this.lastCombat = this.time;

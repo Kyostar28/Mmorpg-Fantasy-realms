@@ -5,11 +5,12 @@ import { createLowPolyCharacter, type LowPolyCharacter } from "../../../PJ_MODEL
 
 export interface AnimState {
   speed: number; // 0..1 movement blend
-  action: "attack" | "cast" | "channel" | null;
+  action: "attack" | "cast" | "channel" | "hit" | "dodge" | null;
   actionT: number; // seconds since action started
   dead: boolean;
   deadT: number;
   airborne?: boolean;
+  dodgeDir?: -1 | 1; // -1 left, 1 right
 }
 
 export interface Model {
@@ -479,17 +480,30 @@ function buildLowPolyCharacterWrapper(race: RaceDef, cls: ClassDef): Model {
 
   // Create animation adapter
   let lastActionT = 0;
+  let lastAction = "";
   const animate = (dt: number, t: number, s: AnimState) => {
     const isMoving = s.speed > 0.1;
     const isSprinting = s.speed > 0.6;
 
-    // Handle action states
-    if (s.action === "attack" && s.actionT < 0.1) {
-      char.playAttack('melee');
-    } else if (s.action === "cast" && s.actionT < 0.1) {
-      char.playAttack('cast');
-    } else if (s.action === "hit" && s.actionT < 0.1) {
-      char.playHitReaction();
+    // Handle action states - trigger animations only when action starts
+    if (s.action !== lastAction || s.actionT < 0.1) {
+      if (s.action === "attack" && lastAction !== "attack") {
+        char.playAttack('melee');
+      } else if (s.action === "cast" && lastAction !== "cast") {
+        char.playAttack('cast');
+      } else if (s.action === "hit" && lastAction !== "hit") {
+        // Randomly choose between hit reaction or block (paladin specific)
+        if (cls.id === "paladin" && Math.random() < 0.4) {
+          char.playBlock();
+        } else {
+          char.playHitReaction();
+        }
+      } else if (s.action === "dodge" && lastAction !== "dodge") {
+        // Trigger dodge animation with direction
+        const dodgeDir = s.dodgeDir || (Math.random() < 0.5 ? -1 : 1);
+        char.playDodge(dodgeDir);
+      }
+      lastAction = s.action;
     }
 
     // Update LowPolyCharacter animation

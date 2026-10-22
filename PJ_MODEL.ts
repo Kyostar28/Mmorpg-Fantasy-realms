@@ -702,6 +702,11 @@ export class LowPolyCharacter {
   private attackType: 'melee' | 'cast' = 'melee';
   private isHitReacting = false;
   private hitReactTimer = 0;
+  private isBlocking = false;
+  private blockTimer = 0;
+  private isDodging = false;
+  private dodgeTimer = 0;
+  private dodgeDirection = 0; // -1 left, 1 right
 
   // Orientación y suavizado
   private currentAngle = 0;
@@ -1117,6 +1122,17 @@ export class LowPolyCharacter {
     this.hitReactTimer = 0;
   }
 
+  public playBlock() {
+    this.isBlocking = true;
+    this.blockTimer = 0;
+  }
+
+  public playDodge(direction: -1 | 1) {
+    this.isDodging = true;
+    this.dodgeTimer = 0;
+    this.dodgeDirection = direction;
+  }
+
   public faceDirection(angleRad: number) {
     this.targetAngle = angleRad;
     this.currentAngle = angleRad;
@@ -1187,6 +1203,48 @@ export class LowPolyCharacter {
       }
     }
 
+    // 4.5 Animación de Bloqueo con Escudo
+    if (this.isBlocking) {
+      this.blockTimer += dt * 6.0;
+      if (this.blockTimer >= 1.0) {
+        this.isBlocking = false;
+        this.blockTimer = 0;
+      } else {
+        const blockPose = Math.sin(this.blockTimer * Math.PI);
+        // Levantar escudo hacia adelante
+        this.leftArmPivot.rotation.x = -Math.PI * 0.7 * blockPose;
+        this.leftArmPivot.rotation.y = 0.4 * blockPose;
+        this.torsoGroup.rotation.y = -0.3 * blockPose;
+        // Ligeramente inclinado hacia atrás para resistir el impacto
+        this.bodyRoot.rotation.x = 0.1 * blockPose;
+      }
+    }
+
+    // 4.6 Animación de Esquive (Dodge)
+    if (this.isDodging) {
+      this.dodgeTimer += dt * 5.0;
+      if (this.dodgeTimer >= 1.0) {
+        this.isDodging = false;
+        this.dodgeTimer = 0;
+      } else {
+        const dodgePhase = Math.sin(this.dodgeTimer * Math.PI);
+        const dir = this.dodgeDirection;
+
+        // Movimiento lateral rápido
+        this.bodyRoot.position.x = dir * 0.8 * dodgePhase;
+
+        // Inclinación del cuerpo en dirección del movimiento
+        this.bodyRoot.rotation.z = -dir * 0.4 * dodgePhase;
+
+        // Brazos en posición de equilibrio
+        this.leftArmPivot.rotation.x = -Math.PI * 0.3 * dodgePhase;
+        this.rightArmPivot.rotation.x = -Math.PI * 0.3 * dodgePhase;
+
+        // Torso inclinado
+        this.torsoGroup.rotation.y = dir * 0.2 * dodgePhase;
+      }
+    }
+
     // 5. Animación de Ataque
     if (this.isAttacking) {
       this.attackProgress += dt * 4.2;
@@ -1195,11 +1253,48 @@ export class LowPolyCharacter {
         this.attackProgress = 0;
       } else {
         if (this.attackType === 'melee') {
-          // Golpe de corte frontal con rotación de hombro
-          const swing = Math.sin(this.attackProgress * Math.PI);
-          this.rightArmPivot.rotation.x = -Math.PI * 0.65 * swing;
-          this.rightArmPivot.rotation.y = -0.5 * swing;
-          this.torsoGroup.rotation.y = 0.3 * swing;
+          // Mejorado: Slash más natural y pronunciado con espada
+          // Wind-up (preparación) -> Strike (golpe) -> Follow-through (recuperación)
+          const p = this.attackProgress;
+          let swing: number;
+          let torsoRot: number;
+          let rightArmX: number;
+          let rightArmY: number;
+          let leftArmX: number;
+
+          if (p < 0.3) {
+            // Wind-up: preparar el golpe hacia atrás
+            const windup = p / 0.3;
+            swing = Math.sin(windup * Math.PI * 0.5);
+            rightArmX = -Math.PI * 0.8 * swing; // Brazo derecho hacia atrás
+            rightArmY = -0.6 * swing;
+            torsoRot = -0.4 * swing; // Torso gira en sentido contrario
+            leftArmX = -Math.PI * 0.2 * swing; // Escudo levantado
+          } else if (p < 0.7) {
+            // Strike: golpe rápido hacia adelante
+            const strike = (p - 0.3) / 0.4;
+            swing = Math.sin(strike * Math.PI);
+            rightArmX = -Math.PI * 0.8 * (1 - swing) + Math.PI * 1.2 * swing; // Brazo hacia adelante violento
+            rightArmY = -0.6 * (1 - swing) + 0.8 * swing;
+            torsoRot = -0.4 * (1 - swing) + 0.5 * swing; // Torso rotación agresiva
+            leftArmX = -Math.PI * 0.2 * (1 - swing) - Math.PI * 0.4 * swing; // Escudo bloqueando
+          } else {
+            // Follow-through: recuperación
+            const recover = (p - 0.7) / 0.3;
+            swing = Math.sin(recover * Math.PI * 0.5);
+            rightArmX = Math.PI * 1.2 * (1 - swing) - Math.PI * 0.1 * swing;
+            rightArmY = 0.8 * (1 - swing) - 0.1 * swing;
+            torsoRot = 0.5 * (1 - swing) - 0.05 * swing;
+            leftArmX = -Math.PI * 0.4 * (1 - swing) - Math.PI * 0.1 * swing;
+          }
+
+          this.rightArmPivot.rotation.x = rightArmX;
+          this.rightArmPivot.rotation.y = rightArmY;
+          this.torsoGroup.rotation.y = torsoRot;
+          this.leftArmPivot.rotation.x = leftArmX;
+
+          // Ligero balanceo del cuerpo para más impacto
+          this.bodyRoot.position.z = -0.05 * Math.sin(p * Math.PI);
         } else {
           // Elevación majestuosa de báculo con ambas manos
           const castPose = Math.sin(this.attackProgress * Math.PI);
