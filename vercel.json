@@ -1,6 +1,5 @@
 {
   "buildCommand": "npm run build",
   "framework": "nextjs",
-  "installCommand": "npm install",
-  "nodeVersion": "22.x"
+  "installCommand": "npm install"
 }
