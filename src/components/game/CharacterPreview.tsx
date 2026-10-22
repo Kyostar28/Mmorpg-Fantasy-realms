@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { CLASSES, RACES, type ClassId, type RaceId } from "@/lib/game/data";
 import { loadClassModel, updateModelColors, setAnimationByState, disposeModel, type FBXModel } from "@/lib/game/fbx-loader";
-import { createLowPolyCharacter, type LowPolyCharacter } from "@/PJ_MODEL";
+import { createLowPolyCharacter, type LowPolyCharacter } from "../../../PJ_MODEL";
 
 // Live 3D preview of the selected race + class, with idle/attack/cast animations.
 export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { race: RaceId; cls: ClassId; primaryColor?: string; secondaryColor?: string }) {
