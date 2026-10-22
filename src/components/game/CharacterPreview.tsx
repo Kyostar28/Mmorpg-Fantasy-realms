@@ -192,8 +192,8 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
             secondaryColor: c.trim,
           });
 
-          // Scale appropriately
-          const scale = 1 / Math.max(1, r.scale * 0.92);
+          // Scale appropriately (increased by 50%)
+          const scale = (1 / Math.max(1, r.scale * 0.92)) * 1.5;
           pjChar.group.scale.setScalar(scale);
 
           s.holder.add(pjChar.group);
@@ -206,8 +206,8 @@ export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { 
           s.model = model;
           s.mixer = model.mixer;
 
-          // Scale the model appropriately
-          const scale = 1 / Math.max(1, r.scale * 0.92);
+          // Scale the model appropriately (increased by 50%)
+          const scale = (1 / Math.max(1, r.scale * 0.92)) * 1.5;
           s.holder.scale.setScalar(scale);
 
           // Play idle animation using the new state-based system

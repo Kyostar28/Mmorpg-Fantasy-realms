@@ -145,7 +145,7 @@ export interface HumanoidOpts {
 export function buildHumanoid(o: HumanoidOpts): Model {
   const root = new THREE.Group();
   const body = pivot(root, 0, 0, 0);
-  body.scale.setScalar(o.scale);
+  body.scale.setScalar(o.scale * 1.5);
 
   const isSkel = o.race === "skeleton";
   const isGolem = o.race === "golem";
@@ -320,7 +320,7 @@ export function buildHumanoid(o: HumanoidOpts): Model {
   if (o.weapon) weaponTip = buildWeapon(o.weapon, armR.hand, armL.hand, o.glow ?? "#7fd8ff");
 
   const isRanged = o.weapon === "bow";
-  const height = 1.95 * o.scale * (isGolem ? 1.15 : 1);
+  const height = 1.95 * o.scale * (isGolem ? 1.15 : 1) * 1.5;
 
   const animate = (dt: number, t: number, s: AnimState) => {
     if (s.dead) {
@@ -399,7 +399,7 @@ export function buildHumanoid(o: HumanoidOpts): Model {
   return {
     root,
     height,
-    radius: 0.6 * o.scale * bulk,
+    radius: 0.6 * o.scale * bulk * 1.5,
     animate,
     weaponTip,
     dispose: () => root.traverse((c) => (c as THREE.Mesh).geometry?.dispose()),
@@ -475,8 +475,8 @@ function buildLowPolyCharacterWrapper(race: RaceDef, cls: ClassDef): Model {
     });
   }
 
-  // Scale the character based on race
-  char.group.scale.setScalar(race.scale * 0.92);
+  // Scale the character based on race (increased by 50%)
+  char.group.scale.setScalar(race.scale * 0.92 * 1.5);
 
   // Create animation adapter
   let lastActionT = 0;
@@ -514,8 +514,8 @@ function buildLowPolyCharacterWrapper(race: RaceDef, cls: ClassDef): Model {
 
   return {
     root: char.group,
-    height: 1.95 * race.scale,
-    radius: 0.6 * race.scale,
+    height: 1.95 * race.scale * 1.5,
+    radius: 0.6 * race.scale * 1.5,
     animate,
     dispose: () => char.destroy(),
   };

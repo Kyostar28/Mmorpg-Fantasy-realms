@@ -334,8 +334,8 @@ export class GameEngine {
         console.log(`[Engine] FBX model loaded, adding to scene`);
         this.pObj.add(this.fbxModel.root);
 
-        // Scale the model based on race
-        const scale = this.race.scale * 0.92;
+        // Scale the model based on race (increased by 50%)
+        const scale = this.race.scale * 0.92 * 1.5;
         this.fbxModel.root.scale.setScalar(scale);
         console.log(`[Engine] Model scale set to: ${scale}`);
 
@@ -353,8 +353,8 @@ export class GameEngine {
         // Store animation mixer reference
         this.model = {
           root: this.fbxModel.root,
-          height: 1.95 * scale,
-          radius: 0.6 * scale,
+          height: 1.95 * scale * 1.5,
+          radius: 0.6 * scale * 1.5,
           animate: (dt: number, t: number, s: AnimState) => {
             // Update FBX animation mixer
             if (engine.fbxModel) {
