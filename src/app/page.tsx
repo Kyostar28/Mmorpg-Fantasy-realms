@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Swords, Trees, Mountain, Flame, Crown } from "lucide-react";
 import { api } from "@/lib/api";
-import { CLASSES, RACES, ZONES, type PlayerRecord } from "@/lib/game/data";
+import { ZONES, type PlayerRecord } from "@/lib/game/data";
 import { getSession, setSession, clearSession, type LocalSession } from "@/lib/game/session";
 
 const ZONE_ICONS = [Trees, Mountain, Flame];
@@ -69,7 +69,7 @@ export default function Home() {
           FANTASY<br />REALMS
         </h1>
         <p className="fade-rise mt-6 max-w-xl text-center text-lg italic text-stone-300/80" style={{ animationDelay: "0.25s" }}>
-          Cinco razas. Seis clases. Tres reinos inmensos esperando a ser conquistados. Forja tu leyenda.
+          Tres reinos inmensos esperan a ser conquistados. Personaliza a tu aventurero y forja tu leyenda.
         </p>
 
         {/* Login */}
@@ -140,29 +140,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Races & classes */}
-        <section className="mt-20 grid w-full gap-8 md:grid-cols-2">
-          <div className="wow-frame rounded-lg p-6">
-            <h3 className="font-display text-lg text-amber-200">Razas</h3>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {RACES.map((r) => (
-                <span key={r.id} className={`rounded border px-3 py-1.5 font-display text-sm ${r.faction === "Alianza" ? "border-sky-700/60 text-sky-200" : "border-red-800/60 text-red-200"}`}>
-                  {r.name}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="wow-frame rounded-lg p-6">
-            <h3 className="font-display text-lg text-amber-200">Clases</h3>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {CLASSES.map((c) => (
-                <span key={c.id} className="rounded border border-stone-700 px-3 py-1.5 font-display text-sm" style={{ color: c.color }}>
-                  {c.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        </section>
 
         {/* Leaderboard */}
         {top.length > 0 && (
@@ -170,14 +147,11 @@ export default function Home() {
             <h3 className="flex items-center gap-2 font-display text-lg text-amber-200"><Crown className="h-5 w-5" /> Héroes legendarios</h3>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {top.map((p, i) => {
-                const c = CLASSES.find((x) => x.id === p.class_name);
-                const r = RACES.find((x) => x.id === p.race);
                 return (
                   <div key={p._id} className="flex items-center justify-between rounded border border-stone-800 bg-black/40 px-4 py-2">
                     <span className="flex items-center gap-3">
                       <span className="w-5 font-display text-amber-500">{i + 1}</span>
-                      <span className="font-display" style={{ color: c?.color }}>{p.username}</span>
-                      <span className="text-xs text-stone-500">{r?.name} · {c?.name}</span>
+                      <span className="font-display text-amber-100">{p.username}</span>
                     </span>
                     <span className="font-display text-sm text-amber-200">Nv {p.level ?? 1}</span>
                   </div>

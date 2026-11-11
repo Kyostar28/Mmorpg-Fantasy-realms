@@ -11,7 +11,6 @@ import { GameEngine, type HudSnapshot } from "@/lib/game/engine";
 import { getSession } from "@/lib/game/session";
 import { ItemTooltip } from "./ItemTooltip";
 
-const RACE_EMBLEM: Record<string, string> = { human: "🦁", elf: "🌙", orc: "🪓", undead: "💀", tauren: "🐂" };
 const EQUIP_SLOTS: { slot: Slot; label: string; icon: string }[] = [
   { slot: "head", label: "Cabeza", icon: "⛑️" },
   { slot: "chest", label: "Torso", icon: "🦺" },
@@ -157,7 +156,7 @@ export default function GameClient() {
 
   const eng = engineRef.current;
   const race = RACES.find((r) => r.id === player?.race);
-  const cls = CLASSES.find((c) => c.id === player?.class_name);
+  const cls = CLASSES.find((c) => c.id === (snap?.classId ?? player?.class_name)) ?? CLASSES[0];
   const zone = snap ? ZONES[snap.zone] : null;
 
   const exit = () => {
@@ -201,7 +200,7 @@ export default function GameClient() {
           <div className="absolute left-3 top-3 z-20 flex items-start gap-2">
             <div className="relative">
               <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-amber-600 bg-[radial-gradient(circle_at_40%_35%,#3a2f20,#0a0805)] text-4xl shadow-[0_0_14px_rgba(0,0,0,0.9)]">
-                {RACE_EMBLEM[race.id]}
+                {snap.name.slice(0, 1).toUpperCase()}
               </div>
               <span className="absolute -bottom-1 -left-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-amber-600 bg-black font-display text-sm font-bold text-amber-200">{snap.level}</span>
               {snap.inCombat && <span className="absolute -right-1 -top-1 text-lg">⚔️</span>}
@@ -294,12 +293,15 @@ export default function GameClient() {
               {cls.abilities.map((a, i) => {
                 const cd = snap.cooldowns[i];
                 const noRes = snap.res < a.cost;
+                const weaponLocked = snap.weaponMode !== (cls.id === "mage" ? "mage" : "melee");
+                const weaponRequirement = cls.id === "mage" ? "bastón u orbe mágico" : "espada o hacha";
                 return (
                   <button
                     key={a.id}
                     onClick={() => eng?.useAbility(i)}
-                    className={`wow-slot group pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded text-3xl transition hover:border-amber-400 ${noRes ? "opacity-50 grayscale" : ""}`}
-                    title={`${a.name} — ${a.desc} (Coste ${a.cost}, ${a.cooldown}s)`}
+                    disabled={weaponLocked}
+                    className={`wow-slot group pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded text-3xl transition hover:border-amber-400 disabled:cursor-not-allowed ${noRes || weaponLocked ? "opacity-50 grayscale" : ""}`}
+                    title={weaponLocked ? `Equipa un ${weaponRequirement} para usar ${a.name}.` : `${a.name} — ${a.desc} (Coste ${a.cost}, ${a.cooldown}s)`}
                   >
                     <span style={{ filter: `drop-shadow(0 0 6px ${a.color})` }}>{a.icon}</span>
                     <CooldownOverlay remaining={Math.max(cd.remaining, snap.gcd)} total={cd.remaining > snap.gcd ? cd.total : 1} />
@@ -450,7 +452,7 @@ export default function GameClient() {
               <div className="mb-2 flex items-center justify-between">
                 <div>
                   <p className="font-display text-lg" style={{ color: cls.color }}>{snap.name}</p>
-                  <p className="text-xs text-stone-400">Nivel {snap.level} · {race.name} {cls.name}</p>
+                  <p className="text-xs text-stone-400">Nivel {snap.level}</p>
                 </div>
                 <button onClick={() => setWin((w) => ({ ...w, char: false }))} className="text-stone-400 hover:text-white"><X className="h-4 w-4" /></button>
               </div>

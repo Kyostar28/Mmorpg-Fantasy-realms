@@ -1,14 +1,19 @@
 // Procedural high-detail character & creature models with skeletal-style procedural animations.
 import * as THREE from "three";
-import type { ClassDef, MobDef, RaceDef } from "./data";
+import type { ClassDef, MobDef, PlayerAppearance, RaceDef } from "./data";
+
+export type WeaponModelKind = "sword" | "axe" | "hammer" | "daggers" | "bow" | "staff" | "skullstaff" | "orb";
 
 export interface AnimState {
-  speed: number; // 0..1 movement blend
-  action: "attack" | "cast" | "channel" | null;
-  actionT: number; // seconds since action started
+  speed: number;
+  action: "attack" | "cast" | "channel" | "hit" | null;
+  actionT: number;
   dead: boolean;
   deadT: number;
   airborne?: boolean;
+  running?: boolean;
+  weaponKind?: WeaponModelKind;
+  attackSide?: "left" | "right";
 }
 
 export interface Model {
@@ -57,7 +62,7 @@ const sph = (r: number, w = 24, h = 18) => new THREE.SphereGeometry(r, w, h);
 // ---------------------------------------------------------------------------
 // Weapons
 // ---------------------------------------------------------------------------
-function buildWeapon(kind: ClassDef["weapon"], hand: THREE.Object3D, offHand: THREE.Object3D, accent: string) {
+function buildWeapon(kind: WeaponModelKind, hand: THREE.Object3D, offHand: THREE.Object3D, accent: string) {
   const steel = mat("#c8ccd2", 0.25, 0.95);
   const dark = mat("#3a2a1c", 0.8, 0.1);
   const gold = mat("#d8a740", 0.3, 0.9);
@@ -72,6 +77,22 @@ function buildWeapon(kind: ClassDef["weapon"], hand: THREE.Object3D, offHand: TH
     mesh(new THREE.ConeGeometry(0.064, 0.16, 4), steel, g, 0, 1.4, 0).rotation.y = Math.PI / 4;
     mesh(sph(0.05), gold, g, 0, -0.16, 0);
     tip = pivot(g, 0, 1.4, 0);
+  } else if (kind === "axe") {
+    const g = pivot(hand, 0, -0.05, 0);
+    g.rotation.x = Math.PI / 2;
+    mesh(new THREE.CylinderGeometry(0.04, 0.045, 1.08, 8), dark, g, 0, 0.36, 0);
+    const bladeShape = new THREE.Shape();
+    bladeShape.moveTo(-0.06, 0.54);
+    bladeShape.lineTo(0.1, 0.82);
+    bladeShape.lineTo(0.34, 0.92);
+    bladeShape.lineTo(0.42, 0.66);
+    bladeShape.lineTo(0.35, 0.38);
+    bladeShape.lineTo(0.12, 0.45);
+    bladeShape.lineTo(-0.06, 0.54);
+    const blade = new THREE.ExtrudeGeometry(bladeShape, { depth: 0.055, bevelEnabled: true, bevelSegments: 1, steps: 1, bevelSize: 0.018, bevelThickness: 0.015 });
+    mesh(blade, steel, g, 0, 0, -0.03);
+    mesh(new THREE.BoxGeometry(0.12, 0.07, 0.09), gold, g, 0, 0.53, 0);
+    tip = pivot(g, 0.36, 0.87, 0);
   } else if (kind === "hammer") {
     const g = pivot(hand, 0, -0.05, 0);
     g.rotation.x = Math.PI / 2;
@@ -104,6 +125,13 @@ function buildWeapon(kind: ClassDef["weapon"], hand: THREE.Object3D, offHand: TH
     m.rotation.y = Math.PI / 2;
     mesh(new THREE.CylinderGeometry(0.005, 0.005, 1.48, 4), mat("#ddd"), g, 0, 0, -0.18);
     tip = g;
+  } else if (kind === "orb") {
+    const g = pivot(hand, 0, -0.02, 0);
+    const orb = mesh(new THREE.IcosahedronGeometry(0.14, 2), mat("#8ddcff", 0.1, 0.2, accent, 2.5), g, 0, 0.18, 0);
+    orb.rotation.set(0.35, 0.25, -0.2);
+    const halo = mesh(new THREE.TorusGeometry(0.2, 0.025, 8, 24), gold, g, 0, 0.18, 0);
+    halo.rotation.x = Math.PI / 2;
+    tip = pivot(g, 0, 0.18, 0);
   } else if (kind === "staff" || kind === "skullstaff") {
     const g = pivot(hand, 0, -0.05, 0);
     mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.0, 10), mat(kind === "staff" ? "#5b3a1e" : "#2a1a2a", 0.7), g, 0, 0.25, 0);
@@ -128,10 +156,14 @@ export interface HumanoidOpts {
   skin: string;
   hair: string;
   armor: string;
+  pants?: string;
+  boots?: string;
   trim: string;
   scale: number;
+  lowPoly?: boolean;
   race: RaceDef["id"] | "skeleton" | "golem";
-  weapon?: ClassDef["weapon"];
+  weapon?: WeaponModelKind;
+  playerStyle?: boolean;
   robe?: boolean;
   hood?: boolean;
   pauldrons?: boolean;
@@ -152,10 +184,22 @@ export function buildHumanoid(o: HumanoidOpts): Model {
   const isUndead = o.race === "undead";
   const isElf = o.race === "elf";
 
-  const skin = isGolem ? mat(o.skin, 0.95, 0.05) : mat(o.skin, isSkel ? 0.7 : 0.6, 0);
-  const armor = mat(o.armor, o.pauldrons ? 0.35 : 0.8, o.pauldrons ? 0.75 : 0.05);
-  const trim = mat(o.trim, 0.35, 0.8);
-  const cloth = mat(o.armor, 0.85, 0);
+  const ownedMaterials = new Set<THREE.Material>();
+  const characterMaterial = (color: string, roughness = 0.78) => {
+    if (!o.lowPoly) return mat(color, roughness);
+    const material = new THREE.MeshStandardMaterial({ color, roughness, flatShading: true });
+    ownedMaterials.add(material);
+    return material;
+  };
+  const skin = isGolem ? mat(o.skin, 0.95, 0.05) : characterMaterial(o.skin, isSkel ? 0.7 : 0.7);
+  const armor = characterMaterial(o.armor, 0.84);
+  const pants = characterMaterial(o.pants ?? o.armor, 0.9);
+  const boots = characterMaterial(o.boots ?? "#3b2a1c", 0.9);
+  const trim = characterMaterial(o.trim, 0.55);
+  const cloth = characterMaterial(o.armor, 0.9);
+  const vest = o.playerStyle ? characterMaterial("#393424", 0.92) : armor;
+  const belt = o.playerStyle ? characterMaterial("#50511a", 0.9) : trim;
+  const greave = o.playerStyle ? characterMaterial("#8d846d", 0.95) : boots;
   const glowMat = o.glow ? mat(o.glow, 0.4, 0, o.glow, 3) : null;
 
   const bulk = isTauren ? 1.25 : isOrc ? 1.15 : isUndead || isSkel ? 0.82 : isGolem ? 1.4 : 1;
@@ -169,8 +213,14 @@ export function buildHumanoid(o: HumanoidOpts): Model {
   } else if (isSkel) {
     mesh(new THREE.TorusGeometry(0.14, 0.04, 8, 16), skin, hips, 0, 0, 0).rotation.x = Math.PI / 2;
   } else {
-    mesh(cap(0.17 * bulk, 0.12), o.robe ? cloth : armor, hips, 0, 0, 0).rotation.z = Math.PI / 2;
-    mesh(new THREE.TorusGeometry(0.19 * bulk, 0.035, 8, 24), trim, hips, 0, 0.08, 0).rotation.x = Math.PI / 2;
+    mesh(cap(0.17 * bulk, 0.12), o.playerStyle ? pants : o.robe ? cloth : armor, hips, 0, 0, 0).rotation.z = Math.PI / 2;
+    if (o.playerStyle) {
+      mesh(new THREE.BoxGeometry(0.4, 0.12, 0.29), belt, hips, 0, 0.03, 0.02);
+      mesh(new THREE.BoxGeometry(0.09, 0.09, 0.035), characterMaterial("#84794b", 0.55), hips, 0, 0.03, 0.177);
+      mesh(new THREE.BoxGeometry(0.035, 0.05, 0.04), characterMaterial("#342f20", 0.7), hips, 0, 0.03, 0.198);
+    } else {
+      mesh(new THREE.TorusGeometry(0.19 * bulk, 0.035, 8, 24), trim, hips, 0, 0.08, 0).rotation.x = Math.PI / 2;
+    }
   }
 
   const torso = pivot(hips, 0, 0.1, 0);
@@ -191,9 +241,19 @@ export function buildHumanoid(o: HumanoidOpts): Model {
   } else {
     const chest = mesh(cap(0.2 * bulk, 0.32), o.robe ? cloth : armor, torso, 0, 0.36, 0);
     chest.scale.set(1.25, 1, 0.78);
-    // chest plate detail
-    mesh(new THREE.BoxGeometry(0.34 * bulk, 0.3, 0.04), trim, torso, 0, 0.42, 0.15 * bulk);
-    if (isTauren || isOrc) mesh(sph(0.16 * bulk), skin, torso, 0, 0.6, 0.06).scale.set(1.6, 0.6, 0.9);
+    if (o.playerStyle) {
+      mesh(new THREE.BoxGeometry(0.12, 0.49, 0.045), vest, torso, -0.12, 0.38, 0.155);
+      mesh(new THREE.BoxGeometry(0.12, 0.49, 0.045), vest, torso, 0.12, 0.38, 0.155);
+      mesh(new THREE.BoxGeometry(0.09, 0.49, 0.025), armor, torso, 0, 0.38, 0.183);
+      mesh(new THREE.BoxGeometry(0.34, 0.1, 0.05), vest, torso, 0, 0.59, 0.14);
+      for (const side of [-1, 1]) {
+        const strap = mesh(new THREE.BoxGeometry(0.07, 0.21, 0.045), vest, torso, side * 0.145, 0.58, 0.12);
+        strap.rotation.z = -side * 0.35;
+      }
+    } else {
+      mesh(new THREE.BoxGeometry(0.34 * bulk, 0.3, 0.04), trim, torso, 0, 0.42, 0.15 * bulk);
+      if (isTauren || isOrc) mesh(sph(0.16 * bulk), skin, torso, 0, 0.6, 0.06).scale.set(1.6, 0.6, 0.9);
+    }
   }
 
   // neck/head
@@ -229,10 +289,21 @@ export function buildHumanoid(o: HumanoidOpts): Model {
       mesh(sph(0.1), skin, head, 0, 0.03, 0.035).scale.set(0.85, 0.75, 1);
       mesh(new THREE.ConeGeometry(0.022, 0.06, 8), skin, head, 0, 0.08, hs + 0.01).rotation.x = Math.PI / 2;
     }
-    // eyes
-    mesh(sph(0.018), eyeM, head, 0.045, 0.12, hs * 0.92);
-    mesh(sph(0.018), eyeM, head, -0.045, 0.12, hs * 0.92);
-    // brow
+    if (o.playerStyle) {
+      for (const side of [-1, 1]) {
+        const eyeShape = new THREE.Shape();
+        eyeShape.moveTo(-0.025, -0.018);
+        eyeShape.lineTo(0.027, -0.006);
+        eyeShape.lineTo(0.004, 0.025);
+        eyeShape.closePath();
+        const eye = mesh(new THREE.ShapeGeometry(eyeShape), eyeM, head, side * 0.047, 0.12, hs * 0.95);
+        eye.scale.x = side;
+      }
+    } else {
+      mesh(sph(0.018), eyeM, head, 0.045, 0.12, hs * 0.92);
+      mesh(sph(0.018), eyeM, head, -0.045, 0.12, hs * 0.92);
+    }
+    if (!o.playerStyle) mesh(new THREE.ConeGeometry(0.022, 0.06, 8), skin, head, 0, 0.08, hs + 0.01).rotation.x = Math.PI / 2;
     if (isOrc) mesh(new THREE.BoxGeometry(0.2, 0.035, 0.05), skin, head, 0, 0.16, hs * 0.85);
     // ears
     for (const s of [-1, 1]) {
@@ -251,8 +322,25 @@ export function buildHumanoid(o: HumanoidOpts): Model {
       mesh(sph(hs * 1.18, 24, 18), cloth, head, 0, 0.13, -0.02).scale.set(1, 1.08, 1.05);
       mesh(new THREE.ConeGeometry(hs * 0.9, 0.2, 16), cloth, head, 0, 0.29, -0.06).rotation.x = -0.4;
     } else if (!isTauren) {
-      const hairM = mat(o.hair, 0.9);
-      mesh(new THREE.SphereGeometry(hs * 1.06, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM, head, 0, 0.12, -0.012);
+      const hairM = characterMaterial(o.hair, 0.88);
+      mesh(new THREE.SphereGeometry(hs * 1.06, o.lowPoly ? 7 : 24, o.lowPoly ? 5 : 18, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM, head, 0, 0.12, -0.012);
+      if (o.lowPoly) {
+        for (const side of [-1, 1]) {
+          const lock = mesh(new THREE.ConeGeometry(0.075, 0.34, 5), hairM, head, side * 0.095, -0.005, 0.018);
+          lock.rotation.z = side * -0.12;
+          lock.rotation.x = -0.08;
+        }
+      }
+      if (o.playerStyle) {
+        for (const side of [-1, 1]) {
+          const sideLock = mesh(new THREE.ConeGeometry(0.05, 0.38, 5), hairM, head, side * 0.115, -0.07, 0.015);
+          sideLock.rotation.set(Math.PI, 0, side * -0.13);
+          const bang = mesh(new THREE.ConeGeometry(0.045, 0.2, 4), hairM, head, side * 0.035, 0.19, 0.095);
+          bang.rotation.set(Math.PI, 0, side * 0.18);
+        }
+        const ponytail = mesh(new THREE.ConeGeometry(0.085, 0.38, 5), hairM, head, 0, -0.06, -0.16);
+        ponytail.rotation.x = -Math.PI / 2;
+      }
       if (isElf) mesh(cap(0.09, 0.32), hairM, head, 0, -0.05, -0.1).scale.set(1.3, 1, 0.6);
       if (isOrc) mesh(cap(0.03, 0.25), hairM, head, 0, 0.25, -0.05).rotation.x = -1.2;
     }
@@ -263,7 +351,10 @@ export function buildHumanoid(o: HumanoidOpts): Model {
   const mkArm = (s: number) => {
     const sh = pivot(torso, s * shoulderX, isGolem ? 0.7 : 0.58, 0);
     if (isGolem) mesh(new THREE.DodecahedronGeometry(0.22, 0), skin, sh, 0, -0.18, 0);
-    else mesh(cap(limbR, 0.24), o.robe ? cloth : skin, sh, 0, -0.17, 0);
+    else {
+      mesh(cap(limbR, 0.24), o.robe ? cloth : skin, sh, 0, -0.17, 0);
+      if (o.playerStyle) mesh(cap(limbR * 1.55, 0.18), cloth, sh, 0, -0.1, 0);
+    }
     if (o.pauldrons && !isSkel) {
       mesh(new THREE.SphereGeometry(0.14 * bulk, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), armor, sh, s * 0.02, 0.02, 0).scale.set(1.15, 0.9, 1.1);
       mesh(new THREE.ConeGeometry(0.04, 0.14, 8), trim, sh, s * 0.05, 0.12, 0);
@@ -275,7 +366,8 @@ export function buildHumanoid(o: HumanoidOpts): Model {
       if (!isSkel) mesh(new THREE.CylinderGeometry(limbR * 1.25, limbR * 1.15, 0.14, 12), trim, el, 0, -0.2, 0);
     }
     const hand = pivot(el, 0, isGolem ? -0.5 : -0.34, 0);
-    mesh(sph(isGolem ? 0.18 : limbR * 0.95), skin, hand, 0, 0, 0);
+    const handGeometry = o.playerStyle ? new THREE.DodecahedronGeometry(limbR * 1.05, 0) : sph(isGolem ? 0.18 : limbR * 0.95);
+    mesh(handGeometry, skin, hand, 0, 0, 0);
     return { sh, el, hand };
   };
   const armR = mkArm(-1);
@@ -285,13 +377,17 @@ export function buildHumanoid(o: HumanoidOpts): Model {
   const mkLeg = (s: number) => {
     const hp = pivot(hips, s * 0.11 * bulk * (isGolem ? 1.3 : 1), -0.04, 0);
     if (isGolem) mesh(new THREE.DodecahedronGeometry(0.22, 0), skin, hp, 0, -0.22, 0);
-    else mesh(cap(limbR * 1.2, 0.3), o.robe ? cloth : armor, hp, 0, -0.22, 0);
+    else mesh(cap(limbR * 1.2, 0.3), o.robe ? cloth : pants, hp, 0, -0.22, 0);
     const kn = pivot(hp, 0, -0.44, 0);
     if (isGolem) mesh(new THREE.DodecahedronGeometry(0.24, 0), skin, kn, 0, -0.2, 0);
-    else mesh(cap(limbR, 0.3), o.robe ? cloth : skin, kn, 0, -0.2, 0);
-    if (!isSkel && !isGolem) mesh(cap(limbR * 1.25, 0.12), trim, kn, 0, -0.32, 0.01);
+    else mesh(cap(limbR, 0.3), o.playerStyle ? pants : o.robe ? cloth : skin, kn, 0, -0.2, 0);
+    if (o.playerStyle) {
+      mesh(new THREE.BoxGeometry(0.14, 0.3, 0.045), greave, kn, 0, -0.2, 0.088);
+      mesh(new THREE.BoxGeometry(0.16, 0.035, 0.05), belt, kn, 0, -0.08, 0.108);
+      mesh(new THREE.BoxGeometry(0.16, 0.035, 0.05), belt, kn, 0, -0.31, 0.108);
+    } else if (!isSkel && !isGolem) mesh(cap(limbR * 1.25, 0.12), trim, kn, 0, -0.32, 0.01);
     if (isTauren) mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.08, 12), mat("#1a1410"), kn, 0, -0.43, 0.02);
-    else mesh(new THREE.BoxGeometry(0.11 * bulk, 0.07, 0.24), isGolem ? skin : mat("#3b2a1c", 0.7), kn, 0, -0.44, 0.05);
+    else mesh(new THREE.BoxGeometry(o.playerStyle ? 0.16 : 0.13 * bulk, 0.16, o.playerStyle ? 0.34 : 0.3), isGolem ? skin : boots, kn, 0, -0.44, 0.06);
     return { hp, kn };
   };
   const legR = mkLeg(-1);
@@ -320,6 +416,7 @@ export function buildHumanoid(o: HumanoidOpts): Model {
   const isRanged = o.weapon === "bow";
   const height = 1.95 * o.scale * (isGolem ? 1.15 : 1);
 
+  let gaitPhase = 0;
   const animate = (dt: number, t: number, s: AnimState) => {
     if (s.dead) {
       const k = Math.min(1, s.deadT * 2.2);
@@ -329,68 +426,111 @@ export function buildHumanoid(o: HumanoidOpts): Model {
       armL.sh.rotation.x = -k * 2.2;
       return;
     }
+
     body.rotation.x = 0;
     body.position.y = 0;
-    const run = s.speed;
-    const cyc = t * 10;
-    const swing = Math.sin(cyc) * 0.9 * run;
-    const breathe = Math.sin(t * 2) * 0.02;
+    const run = THREE.MathUtils.clamp(s.speed, 0, 1);
+    const gaitRate = s.running ? 13 : 8.5;
+    if (run > 0.001) gaitPhase += dt * gaitRate * Math.max(0.65, run);
+    const stride = (s.running ? 0.78 : 0.48) * run;
+    const step = Math.sin(gaitPhase);
+    const oppositeStep = Math.sin(gaitPhase + Math.PI);
+    const breathe = Math.sin(t * 2.1) * 0.018;
 
-    legR.hp.rotation.x = swing;
-    legL.hp.rotation.x = -swing;
-    legR.kn.rotation.x = Math.max(0, -Math.sin(cyc + 1.2)) * 1.2 * run;
-    legL.kn.rotation.x = Math.max(0, Math.sin(cyc + 1.2)) * 1.2 * run;
-    hips.position.y = hipY + Math.abs(Math.cos(cyc)) * 0.07 * run - 0.03 * run;
-    torso.rotation.x = 0.15 * run + breathe;
-    torso.rotation.y = Math.sin(cyc) * 0.12 * run;
+    legR.hp.rotation.x = -step * stride;
+    legL.hp.rotation.x = -oppositeStep * stride;
+    legR.kn.rotation.x = Math.max(0, oppositeStep) * (s.running ? 1.05 : 0.68) * run;
+    legL.kn.rotation.x = Math.max(0, step) * (s.running ? 1.05 : 0.68) * run;
+    hips.position.y = hipY + Math.abs(Math.sin(gaitPhase * 2)) * (s.running ? 0.045 : 0.025) * run;
+    torso.rotation.x = (s.running ? 0.14 : 0.055) * run + breathe;
+    torso.rotation.y = Math.sin(gaitPhase) * 0.075 * run;
 
-    armR.sh.rotation.set(-swing * 0.8, 0, -0.12);
-    armL.sh.rotation.set(swing * 0.8, 0, 0.12);
-    armR.el.rotation.x = -0.4 - 0.5 * run;
-    armL.el.rotation.x = -0.4 - 0.5 * run;
-    head.rotation.x = -0.1 * run;
+    armR.sh.rotation.set(step * stride * 0.55, 0, -0.1);
+    armL.sh.rotation.set(oppositeStep * stride * 0.55, 0, 0.1);
+    armR.el.rotation.x = -0.25 - 0.35 * run;
+    armL.el.rotation.x = -0.25 - 0.35 * run;
+    head.rotation.x = -0.035 * run + Math.sin(t * 1.5) * 0.012;
+
     if (s.airborne) {
-      legR.kn.rotation.x = 0.9;
-      legL.kn.rotation.x = 0.5;
-      legR.hp.rotation.x = -0.5;
+      legR.kn.rotation.x = 0.78;
+      legL.kn.rotation.x = 0.56;
+      legR.hp.rotation.x = -0.38;
+      legL.hp.rotation.x = 0.12;
+      armR.sh.rotation.x = -0.5;
+      armL.sh.rotation.x = -0.5;
     }
-    if (cape) cape.rotation.x = 0.15 + run * 0.5 + Math.sin(t * 3) * 0.05;
+    if (cape) cape.rotation.x = 0.15 + run * 0.35 + Math.sin(t * 3) * 0.05;
 
-    // combat stance when idle with weapon
-    if (run < 0.1 && o.weapon && !s.action) {
-      armR.sh.rotation.x = -0.3 + breathe;
-      armR.el.rotation.x = -0.9;
-      if (isRanged) armL.sh.rotation.set(-0.25, 0, 0.2);
+    const weaponKind = s.weaponKind ?? o.weapon;
+    const isMagicWeapon = weaponKind === "staff" || weaponKind === "skullstaff" || weaponKind === "orb";
+    if (run < 0.1 && !s.action && weaponKind) {
+      armR.sh.rotation.x = -0.22 + breathe;
+      armR.el.rotation.x = -0.62;
+      if (isRanged) armL.sh.rotation.set(-0.22, 0, 0.18);
     }
 
     if (s.action === "attack") {
-      const p = Math.min(1, s.actionT / 0.45);
-      if (isRanged) {
-        const draw = p < 0.7 ? p / 0.7 : 1;
-        armL.sh.rotation.set(-1.55, 0, 0.15);
-        armL.el.rotation.x = 0;
-        armR.sh.rotation.set(-1.5, 0, -0.1 - draw * 0.4);
-        armR.el.rotation.x = -draw * 2.0;
-        torso.rotation.y = 0.5;
+      const duration = weaponKind === "axe" ? 0.78 : weaponKind === "sword" || weaponKind === "hammer" ? 0.58 : 0.5;
+      const p = Math.min(1, s.actionT / duration);
+      const windup = 1 - Math.min(1, p / 0.24);
+      const drive = p < 0.24 ? 0 : p < 0.58 ? Math.sin(((p - 0.24) / 0.34) * Math.PI * 0.5) : Math.max(0, 1 - (p - 0.58) / 0.42);
+      legR.hp.rotation.x *= 0.2;
+      legL.hp.rotation.x *= 0.2;
+      torso.rotation.x = 0.04 + breathe;
+
+      if (weaponKind === "bow") {
+        const draw = p < 0.7 ? p / 0.7 : Math.max(0, 1 - (p - 0.7) / 0.3);
+        armL.sh.rotation.set(-1.45, 0, 0.18);
+        armL.el.rotation.x = -0.08;
+        armR.sh.rotation.set(-1.3, 0, -0.08 - 0.4 * draw);
+        armR.el.rotation.x = -1.25 * draw;
+        torso.rotation.y = 0.42;
+      } else if (isMagicWeapon) {
+        const raise = Math.min(1, p * 3.5);
+        const pulse = Math.sin(t * 12) * 0.035;
+        armR.sh.rotation.set(-1.05 * raise + pulse, 0, -0.22);
+        armL.sh.rotation.set(-0.78 * raise - pulse, 0, 0.24);
+        armR.el.rotation.x = -0.42;
+        armL.el.rotation.x = -0.52;
+        torso.rotation.y = 0.08;
+      } else if (weaponKind === "axe") {
+        armR.sh.rotation.set(-0.3 - 1.45 * windup - 0.42 * drive, 0, -0.32 - 0.16 * windup);
+        armR.el.rotation.x = -1.1 - 0.52 * windup + 0.9 * drive;
+        armL.sh.rotation.set(-0.35 - 0.7 * windup - 0.36 * drive, 0, 0.24);
+        armL.el.rotation.x = -0.95 + 0.72 * drive;
+        torso.rotation.y = -0.3 * windup + 0.45 * drive;
+      } else if (!weaponKind) {
+        const rightSide = s.attackSide !== "left";
+        const striking = rightSide ? armR : armL;
+        const guard = rightSide ? armL : armR;
+        const side = rightSide ? 1 : -1;
+        striking.sh.rotation.set(-0.22 - 0.68 * windup - 0.92 * drive, 0, -side * 0.12);
+        striking.el.rotation.x = -1.05 + 0.94 * drive;
+        guard.sh.rotation.set(-0.58 - 0.12 * drive, 0, side * 0.28);
+        guard.el.rotation.x = -0.95;
+        torso.rotation.y = side * (0.12 * windup - 0.22 * drive);
       } else {
-        // wind up then slash
-        const a = p < 0.35 ? p / 0.35 : 1 - (p - 0.35) / 0.65;
-        armR.sh.rotation.x = -2.6 * a + (p > 0.35 ? -0.6 * (1 - a) : 0);
-        armR.sh.rotation.z = -0.4 * a;
-        armR.el.rotation.x = -0.6 * a;
-        torso.rotation.y = -0.5 * a + (p > 0.35 ? 0.4 * (1 - a) : 0);
-        if (o.weapon === "daggers") {
-          armL.sh.rotation.x = -1.8 * (p > 0.4 ? Math.sin((p - 0.4) / 0.6 * Math.PI) : 0);
-        }
+        armR.sh.rotation.set(-0.24 - 0.95 * windup - 0.8 * drive, 0, -0.1 - 0.32 * windup);
+        armR.el.rotation.x = -0.92 - 0.2 * windup + 0.68 * drive;
+        armL.sh.rotation.set(-0.36 - 0.22 * drive, 0, 0.22);
+        armL.el.rotation.x = -0.88;
+        torso.rotation.y = -0.28 * windup + 0.3 * drive;
       }
+    } else if (s.action === "hit") {
+      const flinch = Math.max(0, 1 - s.actionT / 0.4);
+      torso.rotation.x = -0.12 * flinch;
+      torso.rotation.y = 0.12 * flinch;
+      armR.sh.rotation.x = -0.55 * flinch;
+      armL.sh.rotation.x = -0.35 * flinch;
+      head.rotation.x = 0.16 * flinch;
     } else if (s.action === "cast" || s.action === "channel") {
-      const raise = Math.min(1, s.actionT * 4);
-      const wob = Math.sin(t * 12) * 0.08;
-      armR.sh.rotation.set(-1.3 * raise + wob, 0, -0.3);
-      armL.sh.rotation.set(-1.3 * raise - wob, 0, 0.3);
-      armR.el.rotation.x = -0.5;
+      const raise = Math.min(1, s.actionT * 3.2);
+      const pulse = Math.sin(t * 10) * 0.045;
+      armR.sh.rotation.set(-1.12 * raise + pulse, 0, -0.24);
+      armL.sh.rotation.set(-0.88 * raise - pulse, 0, 0.26);
+      armR.el.rotation.x = -0.42;
       armL.el.rotation.x = -0.5;
-      torso.rotation.x = -0.08;
+      torso.rotation.x = -0.045;
     }
   };
 
@@ -400,26 +540,38 @@ export function buildHumanoid(o: HumanoidOpts): Model {
     radius: 0.6 * o.scale * bulk,
     animate,
     weaponTip,
-    dispose: () => root.traverse((c) => (c as THREE.Mesh).geometry?.dispose()),
+    dispose: () => {
+      root.traverse((child) => {
+        if (child instanceof THREE.Mesh) child.geometry.dispose();
+      });
+      ownedMaterials.forEach((material) => material.dispose());
+      ownedMaterials.clear();
+    },
   };
 }
 
-export function buildPlayerModel(race: RaceDef, cls: ClassDef): Model {
-  const plate = cls.id === "warrior" || cls.id === "paladin";
+export function buildPlayerModel(race: RaceDef, cls: ClassDef, appearance?: PlayerAppearance, weapon?: WeaponModelKind): Model {
+  const colors = appearance ?? {
+    hairColor: race.hair,
+    chestColor: cls.armor,
+    pantsColor: "#292832",
+    bootsColor: "#5b3b2e",
+  };
   return buildHumanoid({
     skin: race.skin,
-    hair: race.hair,
-    armor: cls.armor,
-    trim: cls.trim,
-    scale: race.scale,
-    race: race.id,
-    weapon: cls.weapon,
-    robe: cls.id === "mage" || cls.id === "warlock",
-    hood: cls.id === "assassin" || cls.id === "warlock",
-    pauldrons: plate,
-    cape: cls.id === "paladin" ? "#7a1424" : cls.id === "warrior" ? "#3a3a5a" : cls.id === "hunter" ? "#3b4a22" : undefined,
-    glow: cls.id === "warlock" ? "#66ff33" : cls.id === "mage" ? "#5fd3ff" : undefined,
-    eyeGlow: race.id === "undead" ? "#ffd84a" : race.id === "elf" ? "#9ff0ff" : undefined,
+    hair: colors.hairColor,
+    armor: colors.chestColor,
+    pants: colors.pantsColor,
+    boots: colors.bootsColor,
+    trim: "#786439",
+    scale: 1,
+    race: "human",
+    lowPoly: true,
+    playerStyle: true,
+    weapon,
+    robe: false,
+    hood: false,
+    pauldrons: false,
   });
 }
 

@@ -2,163 +2,137 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { CLASSES, RACES, type ClassId, type RaceId } from "@/lib/game/data";
-import { loadClassModel, updateModelColors, setAnimationByState, disposeModel, type FBXModel } from "@/lib/game/fbx-loader";
 
-// Live 3D preview of the selected race + class, with idle/attack/cast animations.
-export function CharacterPreview({ race, cls, primaryColor, secondaryColor }: { race: RaceId; cls: ClassId; primaryColor?: string; secondaryColor?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(true);
-  const [rendererReady, setRendererReady] = useState(false);
-  const state = useRef<{ scene: THREE.Scene; model: FBXModel | null; holder: THREE.Group; mixer: THREE.AnimationMixer | null } | null>(null);
+import { CLASSES, DEFAULT_PLAYER_APPEARANCE, RACES, type PlayerAppearance } from "@/lib/game/data";
+import { buildPlayerModel } from "@/lib/game/models";
+
+export function CharacterPreview({ appearance, onAvailabilityChange }: { appearance: PlayerAppearance; onAvailabilityChange?: (isLive: boolean) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const availabilityChangeRef = useRef(onAvailabilityChange);
+  availabilityChangeRef.current = onAvailabilityChange;
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const holderRef = useRef<THREE.Group | null>(null);
+  const modelRef = useRef<ReturnType<typeof buildPlayerModel> | null>(null);
+  const readyRef = useRef(false);
+  const [webglUnavailable, setWebglUnavailable] = useState(false);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const container = containerRef.current;
+    if (!container) return;
 
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setPixelRatio(Math.min(typeof window !== "undefined" ? window.devicePixelRatio : 1, 2));
-      renderer.setSize(el.clientWidth, el.clientHeight);
-      renderer.shadowMap.enabled = true;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      el.appendChild(renderer.domElement);
-    } catch (err) {
-      console.warn("[CharacterPreview] WebGL unavailable:", err);
-      setLoading(false);
+    } catch (error) {
+      console.warn("[CharacterPreview] WebGL unavailable:", error);
+      setWebglUnavailable(true);
+      availabilityChangeRef.current?.(false);
       return;
     }
 
+    setWebglUnavailable(false);
+    availabilityChangeRef.current?.(true);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    container.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(32, el.clientWidth / el.clientHeight, 0.1, 100);
-    camera.position.set(0, 1.6, 6.2);
-    camera.lookAt(0, 1.05, 0);
-    scene.add(new THREE.HemisphereLight("#cfe6ff", "#2a1a10", 1.2));
-    const key = new THREE.DirectionalLight("#fff1d6", 3);
+    sceneRef.current = scene;
+    const camera = new THREE.PerspectiveCamera(34, container.clientWidth / Math.max(1, container.clientHeight), 0.1, 100);
+    camera.position.set(0, 1.1, 5.6);
+    camera.lookAt(0, 1.02, 0);
+    scene.add(new THREE.HemisphereLight("#dbeaff", "#302316", 1.8));
+    const key = new THREE.DirectionalLight("#fff0d0", 3.2);
     key.position.set(3, 5, 4);
     key.castShadow = true;
     scene.add(key);
-    const rim = new THREE.DirectionalLight("#6fb8ff", 2.5);
-    rim.position.set(-4, 3, -4);
+    const rim = new THREE.DirectionalLight("#82c5ed", 1.8);
+    rim.position.set(-4, 3, -3);
     scene.add(rim);
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(1.6, 64), new THREE.MeshStandardMaterial({ color: "#1a1410", roughness: 0.6, metalness: 0.3 }));
+
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(1.45, 48),
+      new THREE.MeshStandardMaterial({ color: "#151b1d", roughness: 0.7, metalness: 0.15 }),
+    );
     ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
+    ground.position.y = -0.02;
     scene.add(ground);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(1.55, 1.65, 64), new THREE.MeshBasicMaterial({ color: "#d4a640" }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.42, 1.45, 48), new THREE.MeshBasicMaterial({ color: "#bd9850" }));
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.01;
+    ring.position.y = -0.01;
     scene.add(ring);
     const holder = new THREE.Group();
+    holderRef.current = holder;
     scene.add(holder);
-    state.current = { scene, model: null, holder, mixer: null };
-    setRendererReady(true);
+    readyRef.current = true;
 
-    let raf = 0;
-    let t = 0;
-    let last = performance.now();
-    const loop = () => {
-      raf = requestAnimationFrame(loop);
+    let frame = 0;
+    let elapsed = 0;
+    let previous = performance.now();
+    const render = () => {
+      frame = requestAnimationFrame(render);
       const now = performance.now();
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      t += dt;
-      holder.rotation.y = Math.sin(t * 0.4) * 0.6 + 0.2;
-      state.current?.mixer?.update(dt);
-      try {
-        renderer.render(scene, camera);
-      } catch {}
+      const delta = Math.min(0.05, (now - previous) / 1000);
+      previous = now;
+      elapsed += delta;
+      holder.rotation.y = Math.sin(elapsed * 0.28) * 0.35;
+      modelRef.current?.animate(delta, elapsed, { speed: 0, action: null, actionT: 0, dead: false, deadT: 0 });
+      renderer.render(scene, camera);
     };
-    loop();
-    const onResize = () => {
-      if (!el) return;
-      renderer.setSize(el.clientWidth, el.clientHeight);
-      camera.aspect = el.clientWidth / el.clientHeight;
+    render();
+
+    const resize = () => {
+      if (!container.clientWidth || !container.clientHeight) return;
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
     };
-    window.addEventListener("resize", onResize);
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    window.addEventListener("resize", resize);
+
     return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", onResize);
-      try {
-        renderer.dispose();
-        renderer.domElement.remove();
-      } catch {}
-      setRendererReady(false);
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", resize);
+      modelRef.current?.dispose();
+      modelRef.current = null;
+      renderer.dispose();
+      renderer.domElement.remove();
+      rendererRef.current = null;
+      sceneRef.current = null;
+      holderRef.current = null;
+      readyRef.current = false;
     };
   }, []);
 
   useEffect(() => {
-    const s = state.current;
-    if (!s || !rendererReady) return;
-
-    const loadModel = async () => {
-      setLoading(true);
-      if (s.model) {
-        // Stop all animations
-        s.model.mixer.stopAllAction();
-        // Remove model from holder
-        s.holder.remove(s.model.root);
-        // Dispose the model completely
-        disposeModel(s.model);
-        s.model = null;
-        s.mixer = null;
-      }
-
-      // Clear all children from holder to ensure no leftover models
-      while (s.holder.children.length > 0) {
-        const child = s.holder.children[0];
-        s.holder.remove(child);
-      }
-
-      try {
-        const primColor = primaryColor || "#c79c6e";
-        const secColor = secondaryColor || "#5a3b22";
-        console.log("[CharacterPreview] Loading model for class:", cls, "colors:", primColor, secColor);
-        const model = await loadClassModel(cls, primColor, secColor);
-        s.holder.add(model.root);
-        s.model = model;
-        s.mixer = model.mixer;
-
-        // Scale the model appropriately
-        const r = RACES.find((x) => x.id === race)!;
-        const scale = 1 / Math.max(1, r.scale * 0.92);
-        s.holder.scale.setScalar(scale);
-
-        // Play idle animation using the new state-based system
-        setAnimationByState(model, "idle");
-        console.log("[CharacterPreview] Playing idle animation");
-        console.log("[CharacterPreview] Model loaded successfully");
-      } catch (e) {
-        console.error("Failed to load FBX model:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadModel();
-  }, [race, cls, rendererReady]);
-
-  useEffect(() => {
-    const s = state.current;
-    if (!s || !s.model || !primaryColor || !secondaryColor || cls === "warrior") return;
-    try {
-      updateModelColors(s.model, primaryColor, secondaryColor);
-    } catch (e) {
-      console.error("Failed to update model colors:", e);
-    }
-  }, [cls, primaryColor, secondaryColor]);
+    if (!readyRef.current || !holderRef.current) return;
+    modelRef.current?.dispose();
+    holderRef.current.clear();
+    const model = buildPlayerModel(
+      RACES.find((race) => race.id === "human") ?? RACES[0],
+      CLASSES.find((characterClass) => characterClass.id === "warrior") ?? CLASSES[0],
+      { ...DEFAULT_PLAYER_APPEARANCE, ...appearance },
+    );
+    holderRef.current.add(model.root);
+    modelRef.current = model;
+  }, [appearance.hairColor, appearance.chestColor, appearance.pantsColor, appearance.bootsColor]);
 
   return (
-    <div ref={ref} className="h-full w-full relative">
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#06080b]/80 z-10">
-          <div className="text-center">
-            <div className="mb-2 h-8 w-8 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-            <p className="text-xs text-stone-400">Cargando modelo...</p>
-          </div>
-        </div>
+    <div className="absolute inset-0" aria-label="Vista previa de la apariencia del personaje" role="img">
+      <div ref={containerRef} className="absolute inset-0" />
+      {webglUnavailable && (
+        <img
+          src="/character-reference.png?v=2"
+          alt="Referencia del aventurero low-poly con cabello rubio y atuendo de fantasía"
+          className="pointer-events-none absolute inset-0 h-full w-full object-contain px-10 py-12 opacity-90"
+        />
       )}
     </div>
   );

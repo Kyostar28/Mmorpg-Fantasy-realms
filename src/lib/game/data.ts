@@ -232,6 +232,7 @@ export const ITEMS: Record<string, ItemDef> = Object.fromEntries(
     I({ id: "bow_simple", name: "Arco de fresno", icon: "🏹", type: "weapon", rarity: "common", level: 1, stats: { dmg: 6, agi: 1 }, value: 5 }),
     I({ id: "staff_apprentice", name: "Bastón de aprendiz", icon: "🪄", type: "weapon", rarity: "common", level: 1, stats: { dmg: 5, int: 2 }, value: 5 }),
     I({ id: "skullstaff_cultist", name: "Bastón del cultista", icon: "💀", type: "weapon", rarity: "common", level: 1, stats: { dmg: 5, int: 2 }, value: 5 }),
+  I({ id: "orb_apprentice", name: "Orbe de aprendiz", icon: "🔮", type: "weapon", rarity: "common", level: 1, stats: { dmg: 5, int: 2 }, value: 5 }),
     I({ id: "chest_recruit", name: "Cota de recluta", icon: "🦺", type: "chest", rarity: "common", level: 1, stats: { armor: 8, sta: 1 }, value: 4 }),
     I({ id: "chest_leather", name: "Jubón de cuero", icon: "🧥", type: "chest", rarity: "common", level: 1, stats: { armor: 5, agi: 1 }, value: 4 }),
     I({ id: "robe_apprentice", name: "Túnica de aprendiz", icon: "👘", type: "chest", rarity: "common", level: 1, stats: { armor: 2, int: 2 }, value: 4 }),
@@ -310,7 +311,7 @@ export const ZONES: ZoneDef[] = [
     fog: "#b9cfe0", sky: "#86b6e6", sun: "#fff1d0", ambient: "#8aa6c2", sunIntensity: 2.6,
     ground: ["#4d6b2a", "#6f8a38", "#8a8466"],
     mobs: [{ id: "wild_boar", count: 26 }, { id: "bandit", count: 22 }, { id: "raptor", count: 18 }, { id: "hogger", count: 1 }],
-    vendorItems: ["potion_hp", "potion_mana", "bread", "elixir_stone", "elixir_giant", "plated_greaves"],
+    vendorItems: ["potion_hp", "potion_mana", "bread", "elixir_stone", "elixir_giant", "plated_greaves", "war_axe", "staff_apprentice", "orb_apprentice"],
   },
   {
     id: 2, name: "Tierras Calcinadas", subtitle: "Un páramo volcánico de ceniza y fuego", levels: "10-16",
@@ -339,6 +340,20 @@ export interface InvSlot {
 
 export type Equipment = Partial<Record<Slot, string>>;
 
+export interface PlayerAppearance {
+  hairColor: string;
+  chestColor: string;
+  pantsColor: string;
+  bootsColor: string;
+}
+
+export const DEFAULT_PLAYER_APPEARANCE: PlayerAppearance = {
+  hairColor: "#d9b857",
+  chestColor: "#d8d6c5",
+  pantsColor: "#292832",
+  bootsColor: "#5b3b2e",
+};
+
 export interface PlayerRecord {
   _id: string;
   username: string;
@@ -354,8 +369,10 @@ export interface PlayerRecord {
   equipment?: string;
   kills?: number;
   graphics?: "low" | "normal" | "high";
-  primaryColor?: string;
-  secondaryColor?: string;
+  hairColor?: string;
+  chestColor?: string;
+  pantsColor?: string;
+  bootsColor?: string;
   last_login?: string;
 }
 

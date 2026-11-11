@@ -5,12 +5,11 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import {
-  AbilityDef, CLASSES, ClassDef, Equipment, INVENTORY_SIZE, ITEMS, InvSlot, MAX_LEVEL, MOBS, MobDef, PlayerRecord,
+  AbilityDef, CLASSES, ClassDef, DEFAULT_PLAYER_APPEARANCE, Equipment, INVENTORY_SIZE, ITEMS, InvSlot, MAX_LEVEL, MOBS, MobDef, PlayerRecord,
   RACES, RaceDef, Slot, ZONES, computeStats, xpForLevel, zoneAt, RARITY_COLOR,
 } from "./data";
 import { BOSS_SPOTS, LAKES, heightAt, isBlockedForProps, mulberry32, zoneWeights } from "./terrain";
-import { AnimState, Model, buildMobModel, buildPlayerModel, buildVendor } from "./models";
-import { loadClassModel, setAnimationByState, type FBXModel } from "./fbx-loader";
+import { AnimState, Model, WeaponModelKind, buildMobModel, buildPlayerModel, buildVendor } from "./models";
 import { Collider, buildGrass, buildSky, buildTerrain, buildTowns, buildVegetation, buildWater } from "./world";
 import { Particles, Rings, makeBeam } from "./fx";
 
@@ -26,6 +25,7 @@ export interface HudSnapshot {
   cast: { name: string; progress: number; color: string } | null;
   buffs: { id: string; name: string; icon: string; remaining: number }[];
   zone: number; pos: [number, number]; facing: number;
+  weaponMode: "unarmed" | "melee" | "mage";
   inventory: (InvSlot | null)[]; equipment: Equipment;
   quick: InvSlot[];
   loot: { items: InvSlot[]; gold: number; name: string } | null;
@@ -96,7 +96,6 @@ export class GameEngine {
   private race: RaceDef;
   private cls: ClassDef;
   private model!: Model;
-  private fbxModel: FBXModel | null = null;
   private pObj = new THREE.Group();
   private pos = new THREE.Vector3();
   private vy = 0;
@@ -118,6 +117,11 @@ export class GameEngine {
   private casting: { ab: AbilityDef; idx: number; t: number; total: number; target: Mob | null } | null = null;
   private buffs: Buff[] = [];
   private swingT = 0;
+  private nextAttackSide: "left" | "right" = "right";
+  private terrainQuaternion = new THREE.Quaternion();
+  private yawQuaternion = new THREE.Quaternion();
+  private targetPlayerQuaternion = new THREE.Quaternion();
+  private terrainNormal = new THREE.Vector3();
   private autoAttack = false;
   private lastCombat = -100;
   private dead = false;
@@ -175,7 +179,7 @@ export class GameEngine {
     if (!this.container) throw new Error("Container is null");
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.shadowMap.enabled = graphics !== "low";
-    this.renderer.shadowMap.type = graphics === "high" ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+    this.renderer.shadowMap.type = graphics === "high" ? THREE.PCFShadowMap : THREE.BasicShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -319,75 +323,7 @@ export class GameEngine {
     const z = this.rec.pos_z ?? zone.spawn[1] + 8;
     this.pos.set(x, heightAt(x, z), z);
 
-    // Load FBX model for player
-    try {
-      const primaryColor = this.rec.primaryColor || this.cls.color || this.race.skin;
-      const secondaryColor = this.rec.secondaryColor || this.cls.armor;
-      console.log(`[Engine] Loading FBX model for class: ${this.cls.id}`);
-      this.fbxModel = await loadClassModel(this.cls.id, primaryColor, secondaryColor);
-      console.log(`[Engine] FBX model loaded, adding to scene`);
-      this.pObj.add(this.fbxModel.root);
-
-      // Scale the model based on race
-      const scale = this.race.scale * 0.92;
-      this.fbxModel.root.scale.setScalar(scale);
-      console.log(`[Engine] Model scale set to: ${scale}`);
-
-      // Enable shadows for the model
-      this.fbxModel.root.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
-
-      // Store reference to engine for key access in animation
-      const engine = this;
-
-      // Store animation mixer reference
-      this.model = {
-        root: this.fbxModel.root,
-        height: 1.95 * scale,
-        radius: 0.6 * scale,
-        animate: (dt: number, t: number, s: AnimState) => {
-          // Update FBX animation mixer
-          if (engine.fbxModel) {
-            engine.fbxModel.mixer.update(dt);
-
-            // Determine animation state
-            let animState = "idle";
-            if (s.dead) {
-              animState = "death";
-            } else if (s.action === "hit") {
-              animState = "hit";
-            } else if (s.action === "attack") {
-              animState = "attack";
-            } else if (s.action === "cast") {
-              animState = "cast";
-            } else if (s.action === "channel") {
-              animState = "channel";
-            } else if (s.speed > 0.1) {
-              // Check if running (W + R pressed or Shift)
-              const isRunning = (engine.keys.has("w") || engine.keys.has("arrowup")) && (engine.keys.has("r") || engine.keys.has("shift"));
-              animState = (isRunning || s.speed > 0.6) ? "run" : "walk";
-            }
-
-            // Set animation based on state
-            const isRunning = (engine.keys.has("w") || engine.keys.has("arrowup")) && (engine.keys.has("r") || engine.keys.has("shift"));
-            setAnimationByState(engine.fbxModel, animState, s.speed, isRunning);
-          }
-        },
-        dispose: () => {
-          if (this.fbxModel) {
-            // Don't dispose FBX model here as it's managed by the loader
-          }
-        },
-      };
-    } catch (e) {
-      console.error("[Engine] Failed to load FBX model, falling back to procedural:", e);
-      this.model = buildPlayerModel(this.race, this.cls);
-      this.pObj.add(this.model.root);
-    }
+    this.refreshPlayerModel();
 
     this.scene.add(this.pObj);
     this.camYaw = Math.PI; // look toward +z... start facing north-ish
@@ -396,7 +332,51 @@ export class GameEngine {
     this.playerPlate = this.makePlate(this.rec.username, "#7fd0ff", false);
   }
 
+  private get weaponMode(): HudSnapshot["weaponMode"] {
+    const id = this.equipment.weapon?.toLowerCase() ?? "";
+    if (/staff|orb|wand/.test(id)) return "mage";
+    if (/sword|axe|hammer|mace|blade|dagger|ashbringer/.test(id)) return "melee";
+    return "unarmed";
+  }
+
+  private get playerWeaponKind(): WeaponModelKind | undefined {
+    const id = this.equipment.weapon?.toLowerCase() ?? "";
+    if (!id) return undefined;
+    if (id.includes("orb")) return "orb";
+    if (id.includes("staff") || id.includes("wand")) return id.includes("skull") ? "skullstaff" : "staff";
+    if (id.includes("axe")) return "axe";
+    if (id.includes("hammer") || id.includes("mace")) return "hammer";
+    if (id.includes("dagger")) return "daggers";
+    if (id.includes("bow")) return "bow";
+    if (id.includes("sword") || id.includes("blade") || id.includes("ashbringer")) return "sword";
+    return undefined;
+  }
+
+  private refreshPlayerModel() {
+    const appearance = {
+      hairColor: this.rec.hairColor ?? DEFAULT_PLAYER_APPEARANCE.hairColor,
+      chestColor: this.rec.chestColor ?? DEFAULT_PLAYER_APPEARANCE.chestColor,
+      pantsColor: this.rec.pantsColor ?? DEFAULT_PLAYER_APPEARANCE.pantsColor,
+      bootsColor: this.rec.bootsColor ?? DEFAULT_PLAYER_APPEARANCE.bootsColor,
+    };
+    const previousModel = this.model;
+    if (previousModel) {
+      this.pObj.remove(previousModel.root);
+      previousModel.dispose();
+    }
+    this.model = buildPlayerModel(this.race, this.cls, appearance, this.playerWeaponKind);
+    this.model.root.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    this.pObj.add(this.model.root);
+  }
+
   private recalc() {
+    const classId = this.weaponMode === "mage" ? "mage" : "warrior";
+    this.cls = CLASSES.find((characterClass) => characterClass.id === classId) ?? CLASSES[0];
     this.stats = computeStats(this.race, this.cls, this.level, this.equipment);
     this.hp = Math.min(this.hp, this.stats.maxHp);
     this.res = Math.min(this.res, this.stats.maxRes);
@@ -734,6 +714,12 @@ export class GameEngine {
   useAbility(idx: number) {
     const ab = this.cls.abilities[idx];
     if (!ab || this.dead) return;
+    const requiredMode = this.cls.id === "mage" ? "mage" : "melee";
+    if (this.weaponMode !== requiredMode) {
+      const requirement = requiredMode === "mage" ? "un bastón o un orbe mágico" : "una espada, un hacha u otra arma cuerpo a cuerpo";
+      this.cb.onLog(`Necesitas equipar ${requirement} para usar ${ab.name}.`, "#ff5050");
+      return;
+    }
     if (this.casting) return;
     if (this.cooldowns[idx] > 0) { this.cb.onLog(`${ab.name} aún no está lista.`, "#ff5050"); return; }
     if (this.gcd > 0) return;
@@ -769,7 +755,13 @@ export class GameEngine {
     const base = this.stats.attack * this.dmgMult();
     const col = new THREE.Color(ab.color);
     if (t) this.facing = Math.atan2(t.pos.x - this.pos.x, t.pos.z - this.pos.z);
-    this.anim.action = ab.kind === "melee" ? "attack" : "cast";
+    const physicalStrike = this.cls.id === "warrior" && (ab.kind === "melee" || ab.id === "rend" || ab.id === "whirl");
+    this.anim.weaponKind = this.playerWeaponKind;
+    if (physicalStrike) {
+      this.anim.attackSide = this.nextAttackSide;
+      this.nextAttackSide = this.nextAttackSide === "right" ? "left" : "right";
+    }
+    this.anim.action = physicalStrike ? "attack" : "cast";
     this.anim.actionT = 0;
 
     switch (ab.kind) {
@@ -782,8 +774,12 @@ export class GameEngine {
           this.res = Math.min(this.stats.maxRes, this.res + 20);
           this.fx.burst(this.pChest(), col, 30, 6, 0.6, 0.6);
         }
-        this.hitMob(t, base * ab.power, ab.color);
-        this.fx.burst(this.headPos(t), col, 24, 7, 0.5, 0.5, 6);
+        const impactDelay = ab.id === "charge" ? 520 : this.playerWeaponKind === "axe" ? 360 : this.playerWeaponKind === "sword" || this.playerWeaponKind === "hammer" ? 240 : 170;
+        setTimeout(() => {
+          if (this.disposed || t.state === "dead") return;
+          this.hitMob(t, base * ab.power, ab.color);
+          this.fx.burst(this.headPos(t), col, 24, 7, 0.5, 0.5, 6);
+        }, impactDelay);
         break;
       }
       case "projectile": {
@@ -798,10 +794,16 @@ export class GameEngine {
       }
       case "dot": {
         if (!t) return;
-        t.dots.push({ remaining: 6, tick: 1, dmg: (base * ab.power) / 6, color: ab.color });
-        this.aggro(t);
-        this.fx.burst(this.headPos(t), col, 30, 4, 0.5, 0.8);
-        this.cb.onLog(`${ab.name} afecta a ${t.def.name}.`, ab.color);
+        const applyDot = () => {
+          if (this.disposed || t.state === "dead") return;
+          t.dots.push({ remaining: 6, tick: 1, dmg: (base * ab.power) / 6, color: ab.color });
+          this.aggro(t);
+          this.fx.burst(this.headPos(t), col, 30, 4, 0.5, 0.8);
+          this.cb.onLog(`${ab.name} afecta a ${t.def.name}.`, ab.color);
+        };
+        const impactDelay = this.cls.id === "warrior" ? this.playerWeaponKind === "axe" ? 360 : 240 : 0;
+        if (impactDelay) setTimeout(applyDot, impactDelay);
+        else applyDot();
         break;
       }
       case "aoe": {
@@ -820,7 +822,7 @@ export class GameEngine {
             this.fx.emit(center.clone().add(new THREE.Vector3(0, 1, 0)), new THREE.Vector3(Math.cos(a) * radius * 2, Math.random() * 2, Math.sin(a) * radius * 2), col, 0.7, 0.5);
           }
         }
-        const delay = ab.range > 9 ? 450 : 0;
+        const delay = ab.id === "whirl" ? 420 : ab.range > 9 ? 450 : 0;
         setTimeout(() => {
           if (this.disposed) return;
           for (const m of this.mobs) {
@@ -1067,6 +1069,7 @@ export class GameEngine {
     this.inventory[idx] = prev ? { id: prev, qty: 1 } : null;
     const hpPct = this.hp / this.stats.maxHp;
     this.recalc();
+    if (slot === "weapon") this.refreshPlayerModel();
     this.hp = Math.round(this.stats.maxHp * hpPct);
     this.cb.onLog(`Equipas ${it.name}.`, RARITY_COLOR[it.rarity]);
     this.markDirty(true);
@@ -1078,6 +1081,7 @@ export class GameEngine {
     if (!this.addToInv(id, 1)) { this.cb.onLog("Tu inventario está lleno.", "#ff5050"); return; }
     delete this.equipment[slot];
     this.recalc();
+    if (slot === "weapon") this.refreshPlayerModel();
     this.markDirty(true);
   }
 
@@ -1213,6 +1217,7 @@ export class GameEngine {
 
     // ---- movement
     let moving = false;
+    let isRunning = false;
     if (!this.dead) {
       const fwd = new THREE.Vector3(-Math.sin(this.camYaw), 0, -Math.cos(this.camYaw));
       const right = new THREE.Vector3(Math.cos(this.camYaw), 0, -Math.sin(this.camYaw));
@@ -1223,8 +1228,10 @@ export class GameEngine {
       if (k.has("a") || k.has("arrowleft")) dir.sub(right);
       if (k.has("d") || k.has("arrowright")) dir.add(right);
       // Check for running (W + R or Shift)
-      const isRunning = (k.has("w") || k.has("arrowup")) && (k.has("r") || k.has("shift"));
+      isRunning = (k.has("w") || k.has("arrowup")) && (k.has("r") || k.has("shift"));
       if (this.dash) {
+        moving = true;
+        isRunning = true;
         this.dash.t += dt;
         const step = this.dash.to.clone().sub(this.pos).setY(0);
         const d = step.length();
@@ -1295,26 +1302,36 @@ export class GameEngine {
     const tg = this.target;
     if (tg && tg.state !== "dead" && this.autoAttack && !this.dead && !this.casting) {
       const d = tg.pos.distanceTo(this.pos) - (tg.model?.radius ?? 0.8);
-      const range = this.cls.attackRange;
+      const range = this.playerWeaponKind === "bow" ? 28 : this.cls.attackRange;
       this.swingT -= dt;
       if (d <= range && this.swingT <= 0) {
-        this.swingT = this.cls.weapon === "daggers" ? 1.3 : range > 5 ? 2.2 : 2.0;
+        const weaponKind = this.playerWeaponKind;
+        this.swingT = range > 5 ? 2.15 : weaponKind === "axe" ? 1.95 : weaponKind === "sword" || weaponKind === "hammer" ? 1.55 : weaponKind === "daggers" ? 1.25 : 1.1;
         if (!moving) this.facing = Math.atan2(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z);
+        this.anim.weaponKind = weaponKind;
+        this.anim.attackSide = this.nextAttackSide;
+        this.nextAttackSide = this.nextAttackSide === "right" ? "left" : "right";
         this.anim.action = "attack";
         this.anim.actionT = 0;
         const base = this.stats.attack * this.dmgMult();
         if (range > 5) {
-          const caster = this.cls.weapon !== "bow";
+          const caster = this.weaponMode === "mage";
           this.launch(tg, new THREE.Color(caster ? (this.cls.id === "warlock" ? "#a64dff" : "#9fe8ff") : "#ffe7b0"), 0.15, () => this.hitMob(tg, base * (caster ? 0.7 : 1), "#ffffff"), caster ? "orb" : "arrow");
           if (this.cls.resource === "Foco") this.res = Math.min(this.stats.maxRes, this.res + 4);
         } else {
-          setTimeout(() => { if (!this.disposed && tg.state !== "dead") { this.hitMob(tg, base, "#ffffff"); this.fx.burst(this.headPos(tg), "#ffeecc", 10, 4, 0.3, 0.3, 6); } }, 180);
+          const impactDelay = weaponKind === "axe" ? 360 : weaponKind === "sword" || weaponKind === "hammer" ? 240 : 170;
+          setTimeout(() => {
+            if (!this.disposed && tg.state !== "dead") {
+              this.hitMob(tg, base, "#ffffff");
+              this.fx.burst(this.headPos(tg), "#ffeecc", 10, 4, 0.3, 0.3, 6);
+            }
+          }, impactDelay);
         }
       }
     }
     if (this.anim.action) {
       this.anim.actionT += dt;
-      const maxDuration = this.anim.action === "attack" ? 0.75 : 0.55;
+      const maxDuration = this.anim.action === "attack" ? this.playerWeaponKind === "axe" ? 0.88 : this.playerWeaponKind === "sword" || this.playerWeaponKind === "hammer" ? 0.68 : 0.58 : 0.55;
       if (this.anim.action !== "channel" && this.anim.action !== "hit" && this.anim.actionT > maxDuration) this.anim.action = null;
       if (this.anim.action === "channel" && !this.casting) this.anim.action = null;
       if (this.anim.action === "hit" && this.anim.actionT > 0.4) this.anim.action = null;
@@ -1322,10 +1339,26 @@ export class GameEngine {
     if (this.anim.dead) this.anim.deadT += dt;
 
     // ---- player model
-    this.anim.speed = THREE.MathUtils.lerp(this.anim.speed, moving ? 1 : 0, Math.min(1, dt * 10));
+    const gaitSpeed = moving ? (isRunning ? 1 : 0.58) : 0;
+    this.anim.speed = THREE.MathUtils.lerp(this.anim.speed, gaitSpeed, Math.min(1, dt * 10));
+    this.anim.running = isRunning;
+    this.anim.weaponKind = this.playerWeaponKind;
     this.anim.airborne = !this.onGround;
     this.pObj.position.copy(this.pos);
-    this.pObj.rotation.y = this.facing;
+
+    const terrainHeight = heightAt(this.pos.x, this.pos.z);
+    if (this.onGround && terrainHeight >= -1.3) {
+      const sample = 0.65;
+      const slopeX = (heightAt(this.pos.x + sample, this.pos.z) - heightAt(this.pos.x - sample, this.pos.z)) / (2 * sample);
+      const slopeZ = (heightAt(this.pos.x, this.pos.z + sample) - heightAt(this.pos.x, this.pos.z - sample)) / (2 * sample);
+      this.terrainNormal.set(-slopeX, 1, -slopeZ).normalize();
+    } else {
+      this.terrainNormal.copy(UP);
+    }
+    this.terrainQuaternion.setFromUnitVectors(UP, this.terrainNormal);
+    this.yawQuaternion.setFromAxisAngle(UP, this.facing);
+    this.targetPlayerQuaternion.copy(this.terrainQuaternion).multiply(this.yawQuaternion);
+    this.pObj.quaternion.slerp(this.targetPlayerQuaternion, Math.min(1, dt * 8));
     this.model.animate(dt, t, this.anim);
     if (this.beam) {
       this.beam.t += dt;
@@ -1691,6 +1724,7 @@ export class GameEngine {
       cast: this.casting ? { name: this.casting.ab.name, progress: this.casting.t / this.casting.total, color: this.casting.ab.color } : null,
       buffs: this.buffs.map((b) => ({ id: b.id, name: b.name, icon: b.icon, remaining: b.t })),
       zone: Math.max(0, this.currentZone), pos: [this.pos.x, this.pos.z], facing: this.facing,
+      weaponMode: this.weaponMode,
       inventory: this.inventory.map((s) => (s ? { ...s } : null)), equipment: { ...this.equipment },
       quick: this.quickList(),
       loot: this.openLoot?.loot ? { items: this.openLoot.loot.items.map((i) => ({ ...i })), gold: this.openLoot.loot.gold, name: this.openLoot.def.name } : null,
@@ -1728,21 +1762,7 @@ export class GameEngine {
       const m = o as THREE.Mesh;
       m.geometry?.dispose?.();
     });
-    // Dispose FBX model if loaded
-    if (this.fbxModel) {
-      this.fbxModel.mixer.stopAllAction();
-      this.fbxModel.root.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((mat) => mat.dispose());
-          } else {
-            child.material.dispose();
-          }
-          child.geometry.dispose();
-        }
-      });
-      this.fbxModel.root.clear();
-    }
+    this.model?.dispose();
   }
 }
 

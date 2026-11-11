@@ -1,16 +1,16 @@
-import type { PlayerRecord } from '@/lib/game/data';
 import { playersStore } from '@/lib/player-store';
 
-export async function GET() {
+export function GET() {
   try {
     // Obtener todos los jugadores del store en memoria
     const allPlayers = Array.from(playersStore.values());
     
     // Filtrar jugadores que tienen clase y ordenar por nivel y xp
     const rows = allPlayers
-      .filter(p => p.class_name !== undefined && p.class_name !== null)
+      .filter((player) => player.class_name !== undefined)
       .sort((a, b) => {
-        if (b.level !== a.level) return b.level - a.level;
+        const levelDifference = (b.level ?? 0) - (a.level ?? 0);
+        if (levelDifference !== 0) return levelDifference;
         return (b.xp ?? 0) - (a.xp ?? 0);
       })
       .slice(0, 8)

@@ -1,4 +1,4 @@
-import type { PlayerRecord } from '@/lib/game/data';
+import { DEFAULT_PLAYER_APPEARANCE, type PlayerRecord } from '@/lib/game/data';
 import { playersStore } from '@/lib/player-store';
 
 // Username-only login: simula login sin base de datos usando localStorage del cliente
@@ -9,6 +9,14 @@ export async function POST(request: Request) {
     if (!/^[\p{L}\p{N}_-]{3,16}$/u.test(username)) {
       return Response.json({ ok: false, error: 'El nombre debe tener entre 3 y 16 caracteres (letras, números, _ o -).' }, { status: 400 });
     }
+    const existingPlayer = Array.from(playersStore.values()).find(
+      (player) => player.username.toLocaleLowerCase() === username.toLocaleLowerCase(),
+    );
+    if (existingPlayer) {
+      existingPlayer.last_login = new Date().toISOString();
+      return Response.json({ ok: true, data: existingPlayer });
+    }
+
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
     
@@ -28,6 +36,7 @@ export async function POST(request: Request) {
       inventory: undefined,
       equipment: undefined,
       graphics: 'normal',
+      ...DEFAULT_PLAYER_APPEARANCE,
       last_login: now,
     };
     
