@@ -68,19 +68,18 @@ function buildWeapon(kind: WeaponModelKind, hand: THREE.Object3D, offHand: THREE
   const gold = mat("#d8a740", 0.3, 0.9);
   let tip: THREE.Object3D = hand;
   if (kind === "sword") {
-    const g = pivot(hand, 0, -0.05, 0);
-    g.rotation.x = Math.PI / 2;
-    mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.28, 10), dark, g, 0, 0, 0);
-    mesh(new THREE.BoxGeometry(0.34, 0.05, 0.08), gold, g, 0, 0.16, 0);
+    const g = pivot(hand);
+    mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.28, 8), dark, g, 0, 0.06, 0);
+    mesh(new THREE.BoxGeometry(0.34, 0.05, 0.08), gold, g, 0, 0.2, 0);
     const blade = new THREE.BoxGeometry(0.09, 1.15, 0.025, 1, 6, 1);
-    mesh(blade, steel, g, 0, 0.75, 0);
-    mesh(new THREE.ConeGeometry(0.064, 0.16, 4), steel, g, 0, 1.4, 0).rotation.y = Math.PI / 4;
-    mesh(sph(0.05), gold, g, 0, -0.16, 0);
-    tip = pivot(g, 0, 1.4, 0);
+    mesh(blade, steel, g, 0, 0.83, 0);
+    mesh(new THREE.ConeGeometry(0.064, 0.16, 4), steel, g, 0, 1.47, 0).rotation.y = Math.PI / 4;
+    mesh(sph(0.05), gold, g, 0, -0.12, 0);
+    tip = pivot(g, 0, 1.47, 0);
   } else if (kind === "axe") {
-    const g = pivot(hand, 0, -0.05, 0);
-    g.rotation.x = Math.PI / 2;
+    const g = pivot(hand);
     mesh(new THREE.CylinderGeometry(0.04, 0.045, 1.08, 8), dark, g, 0, 0.36, 0);
+    mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.14, 8), gold, g, 0, 0.06, 0);
     const bladeShape = new THREE.Shape();
     bladeShape.moveTo(-0.06, 0.54);
     bladeShape.lineTo(0.1, 0.82);
@@ -133,18 +132,21 @@ function buildWeapon(kind: WeaponModelKind, hand: THREE.Object3D, offHand: THREE
     halo.rotation.x = Math.PI / 2;
     tip = pivot(g, 0, 0.18, 0);
   } else if (kind === "staff" || kind === "skullstaff") {
-    const g = pivot(hand, 0, -0.05, 0);
-    mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.0, 10), mat(kind === "staff" ? "#5b3a1e" : "#2a1a2a", 0.7), g, 0, 0.25, 0);
+    const g = pivot(hand);
+    g.rotation.x = 0.42;
+    const wood = mat(kind === "staff" ? "#5b3a1e" : "#2a1a2a", 0.7);
+    mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.0, 8), wood, g, 0, 0, 0);
+    mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.13, 8), gold, g, 0, 0, 0);
     if (kind === "staff") {
-      mesh(new THREE.TorusGeometry(0.13, 0.025, 8, 24), gold, g, 0, 1.3, 0);
-      mesh(new THREE.OctahedronGeometry(0.14, 1), mat("#9fe8ff", 0.1, 0.2, accent, 2.4), g, 0, 1.32, 0);
+      mesh(new THREE.TorusGeometry(0.13, 0.025, 6, 16), gold, g, 0, 0.82, 0);
+      mesh(new THREE.OctahedronGeometry(0.14, 1), mat("#9fe8ff", 0.1, 0.2, accent, 2.4), g, 0, 0.92, 0);
     } else {
-      mesh(sph(0.16), mat("#e8e0cc", 0.6), g, 0, 1.36, 0).scale.set(1, 1.05, 1.1);
-      mesh(sph(0.035), mat("#000", 1, 0, "#66ff33", 4), g, 0.06, 1.38, 0.13);
-      mesh(sph(0.035), mat("#000", 1, 0, "#66ff33", 4), g, -0.06, 1.38, 0.13);
-      for (const s of [-1, 1]) mesh(new THREE.ConeGeometry(0.04, 0.3, 8), mat("#1a1010"), g, s * 0.12, 1.5, 0).rotation.z = -s * 0.5;
+      mesh(sph(0.16), mat("#e8e0cc", 0.6), g, 0, 0.94, 0).scale.set(1, 1.05, 1.1);
+      mesh(sph(0.035), mat("#000", 1, 0, "#66ff33", 4), g, 0.06, 0.96, 0.13);
+      mesh(sph(0.035), mat("#000", 1, 0, "#66ff33", 4), g, -0.06, 0.96, 0.13);
+      for (const s of [-1, 1]) mesh(new THREE.ConeGeometry(0.04, 0.3, 6), mat("#1a1010"), g, s * 0.12, 1.08, 0).rotation.z = -s * 0.5;
     }
-    tip = pivot(g, 0, 1.34, 0);
+    tip = pivot(g, 0, 0.98, 0);
   }
   return tip;
 }
@@ -366,8 +368,19 @@ export function buildHumanoid(o: HumanoidOpts): Model {
       if (!isSkel) mesh(new THREE.CylinderGeometry(limbR * 1.25, limbR * 1.15, 0.14, 12), trim, el, 0, -0.2, 0);
     }
     const hand = pivot(el, 0, isGolem ? -0.5 : -0.34, 0);
-    const handGeometry = o.playerStyle ? new THREE.DodecahedronGeometry(limbR * 1.05, 0) : sph(isGolem ? 0.18 : limbR * 0.95);
-    mesh(handGeometry, skin, hand, 0, 0, 0);
+    if (o.playerStyle) {
+      const palm = mesh(new THREE.DodecahedronGeometry(limbR * 1.35, 0), skin, hand, 0, -0.01, 0.025);
+      palm.scale.set(0.82, 0.78, 0.7);
+      for (let fingerIndex = 0; fingerIndex < 4; fingerIndex++) {
+        const spread = (fingerIndex - 1.5) * limbR * 0.42;
+        const length = fingerIndex === 0 || fingerIndex === 3 ? 0.08 : 0.1;
+        mesh(new THREE.CylinderGeometry(0.018, 0.015, length, 5), skin, hand, spread, -0.09, 0.045);
+      }
+      const thumb = mesh(new THREE.CylinderGeometry(0.022, 0.017, 0.09, 5), skin, hand, s * limbR * 1.08, -0.035, 0.02);
+      thumb.rotation.z = -s * 0.62;
+    } else {
+      mesh(sph(isGolem ? 0.18 : limbR * 0.95), skin, hand, 0, 0, 0);
+    }
     return { sh, el, hand };
   };
   const armR = mkArm(-1);
@@ -435,20 +448,21 @@ export function buildHumanoid(o: HumanoidOpts): Model {
     const stride = (s.running ? 0.78 : 0.48) * run;
     const step = Math.sin(gaitPhase);
     const oppositeStep = Math.sin(gaitPhase + Math.PI);
-    const breathe = Math.sin(t * 2.1) * 0.018;
+    const breathCycle = Math.sin(t * 2.1);
+    const breathe = breathCycle * 0.012;
 
     legR.hp.rotation.x = -step * stride;
     legL.hp.rotation.x = -oppositeStep * stride;
     legR.kn.rotation.x = Math.max(0, oppositeStep) * (s.running ? 1.05 : 0.68) * run;
     legL.kn.rotation.x = Math.max(0, step) * (s.running ? 1.05 : 0.68) * run;
-    hips.position.y = hipY + Math.abs(Math.sin(gaitPhase * 2)) * (s.running ? 0.045 : 0.025) * run;
+    hips.position.y = hipY + Math.abs(Math.sin(gaitPhase * 2)) * (s.running ? 0.045 : 0.025) * run + breathCycle * 0.006 * (1 - run);
     torso.rotation.x = (s.running ? 0.14 : 0.055) * run + breathe;
     torso.rotation.y = Math.sin(gaitPhase) * 0.075 * run;
 
-    armR.sh.rotation.set(step * stride * 0.55, 0, -0.1);
-    armL.sh.rotation.set(oppositeStep * stride * 0.55, 0, 0.1);
-    armR.el.rotation.x = -0.25 - 0.35 * run;
-    armL.el.rotation.x = -0.25 - 0.35 * run;
+    armR.sh.rotation.set(step * stride * 0.55, 0, -0.035);
+    armL.sh.rotation.set(oppositeStep * stride * 0.55, 0, 0.035);
+    armR.el.rotation.x = -0.04 - 0.08 * run;
+    armL.el.rotation.x = -0.04 - 0.08 * run;
     head.rotation.x = -0.035 * run + Math.sin(t * 1.5) * 0.012;
 
     if (s.airborne) {
@@ -463,10 +477,12 @@ export function buildHumanoid(o: HumanoidOpts): Model {
 
     const weaponKind = s.weaponKind ?? o.weapon;
     const isMagicWeapon = weaponKind === "staff" || weaponKind === "skullstaff" || weaponKind === "orb";
-    if (run < 0.1 && !s.action && weaponKind) {
-      armR.sh.rotation.x = -0.22 + breathe;
-      armR.el.rotation.x = -0.62;
-      if (isRanged) armL.sh.rotation.set(-0.22, 0, 0.18);
+    if (run < 0.1 && !s.action) {
+      armR.sh.rotation.set(breathe * 0.35, 0, -0.025);
+      armL.sh.rotation.set(breathe * 0.35, 0, 0.025);
+      armR.el.rotation.set(0, 0, 0);
+      armL.el.rotation.set(0, 0, 0);
+      if (isRanged) armL.sh.rotation.set(0, 0, 0.08);
     }
 
     if (s.action === "attack") {

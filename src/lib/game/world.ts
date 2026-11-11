@@ -5,7 +5,7 @@ import { WORLD, ZONES } from "./data";
 import { BOSS_SPOTS, LAKES, fbm, heightAt, isBlockedForProps, mulberry32, noise2, roadFactor, roadZ, zoneWeights } from "./terrain";
 
 // ---------- Procedural textures ----------
-function makeDetailTextures(size = 512) {
+function makeDetailTextures(size = 512, anisotropy = 8) {
   const c = document.createElement("canvas");
   c.width = c.height = size;
   const ctx = c.getContext("2d")!;
@@ -40,7 +40,7 @@ function makeDetailTextures(size = 512) {
   const color = new THREE.CanvasTexture(c);
   color.wrapS = color.wrapT = THREE.RepeatWrapping;
   color.colorSpace = THREE.SRGBColorSpace;
-  color.anisotropy = 8;
+  color.anisotropy = anisotropy;
 
   const nc = document.createElement("canvas");
   nc.width = nc.height = size;
@@ -62,7 +62,7 @@ function makeDetailTextures(size = 512) {
   nctx.putImageData(nimg, 0, 0);
   const normal = new THREE.CanvasTexture(nc);
   normal.wrapS = normal.wrapT = THREE.RepeatWrapping;
-  normal.anisotropy = 8;
+  normal.anisotropy = anisotropy;
   return { color, normal };
 }
 
@@ -100,8 +100,9 @@ function groundColor(x: number, z: number, h: number, slope: number, out: THREE.
   }
 }
 
-export function buildTerrain() {
-  const segX = 800, segZ = 270;
+export function buildTerrain(detail: "low" | "normal" = "normal") {
+  const segX = detail === "low" ? 360 : 800;
+  const segZ = detail === "low" ? 122 : 270;
   const geo = new THREE.PlaneGeometry(WORLD.width, WORLD.depth, segX, segZ);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -118,7 +119,7 @@ export function buildTerrain() {
     colors[i * 3 + 2] = col.b;
   }
   geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  const tex = makeDetailTextures();
+  const tex = makeDetailTextures(detail === "low" ? 256 : 512, detail === "low" ? 2 : 8);
   tex.color.repeat.set(WORLD.width / 9, WORLD.depth / 9);
   tex.normal.repeat.set(WORLD.width / 9, WORLD.depth / 9);
   const m = new THREE.MeshStandardMaterial({
@@ -270,7 +271,7 @@ interface PropType {
 
 export interface Collider { x: number; z: number; r: number }
 
-export function buildVegetation(scene: THREE.Scene) {
+export function buildVegetation(scene: THREE.Scene, density = 1) {
   const vc = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
   const glowMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, emissive: new THREE.Color("#2fb8c8"), emissiveIntensity: 1.4 });
   const types: Record<string, PropType> = {
@@ -300,8 +301,9 @@ export function buildVegetation(scene: THREE.Scene) {
   };
   const scatter = (zone: number, type: string, count: number, smin: number, smax: number, clusterFreq = 0) => {
     const z0 = ZONES[zone];
+    const targetCount = Math.round(count * density);
     let placed = 0, tries = 0;
-    while (placed < count && tries < count * 8) {
+    while (placed < targetCount && tries < targetCount * 8) {
       tries++;
       const x = z0.x0 + 30 + rand() * (z0.x1 - z0.x0 - 60);
       const z = WORLD.minZ + 40 + rand() * (WORLD.depth - 80);
@@ -348,8 +350,8 @@ export function buildVegetation(scene: THREE.Scene) {
 }
 
 // ---------- Dynamic grass around the player ----------
-export function buildGrass(scene: THREE.Scene) {
-  const COUNT = 26000, R = 70;
+export function buildGrass(scene: THREE.Scene, count = 26000) {
+  const COUNT = count, R = 70;
   const blade = new THREE.PlaneGeometry(0.12, 0.9, 1, 3);
   blade.translate(0, 0.45, 0);
   const p = blade.attributes.position as THREE.BufferAttribute;

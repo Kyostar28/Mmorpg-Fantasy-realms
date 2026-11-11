@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Backpack, BookOpen, HelpCircle, LogOut, Map as MapIcon, Skull, User, X } from "lucide-react";
+import { Backpack, BookOpen, Coins, HelpCircle, LogOut, Map as MapIcon, RotateCcw, Skull, User, X } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   CLASSES, ITEMS, RACES, RARITY_COLOR, ZONES, type PlayerRecord, type Slot,
@@ -63,9 +63,31 @@ export default function GameClient() {
   const [tip, setTip] = useState<Tip>(null);
   const [saving, setSaving] = useState(false);
   const [player, setPlayer] = useState<PlayerRecord | null>(null);
+  const [touchDevice, setTouchDevice] = useState(false);
+  const [portraitOrientation, setPortraitOrientation] = useState(false);
+  const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
+  const joystickPointer = useRef<number | null>(null);
 
   const pushLog = useCallback((msg: string, color = "#e8e0c8") => {
     setLog((l) => [...l.slice(-40), { id: logId.current++, msg, color }]);
+  }, []);
+
+  useEffect(() => {
+    const coarsePointer = window.matchMedia("(pointer: coarse)");
+    const portrait = window.matchMedia("(orientation: portrait)");
+    const updateDeviceMode = () => {
+      setTouchDevice(coarsePointer.matches || navigator.maxTouchPoints > 0);
+      setPortraitOrientation(portrait.matches);
+    };
+    updateDeviceMode();
+    coarsePointer.addEventListener("change", updateDeviceMode);
+    portrait.addEventListener("change", updateDeviceMode);
+    window.addEventListener("resize", updateDeviceMode);
+    return () => {
+      coarsePointer.removeEventListener("change", updateDeviceMode);
+      portrait.removeEventListener("change", updateDeviceMode);
+      window.removeEventListener("resize", updateDeviceMode);
+    };
   }, []);
 
   // ---------- Load player & start engine ----------
@@ -164,7 +186,34 @@ export default function GameClient() {
     setTimeout(() => router.push("/"), 400);
   };
 
-  const showTip = (e: React.MouseEvent, id: string, hint?: string, price?: number) => setTip({ id, x: e.clientX, y: e.clientY, hint, price });
+  const showTip = (e: React.MouseEvent, id: string, hint?: string, price?: number) => setTip({ id: id, x: e.clientX, y: e.clientY, hint, price });
+
+  const updateJoystick = (event: React.PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const radius = Math.min(rect.width, rect.height) * 0.34;
+    let x = (event.clientX - (rect.left + rect.width / 2)) / radius;
+    let y = -(event.clientY - (rect.top + rect.height / 2)) / radius;
+    const distance = Math.hypot(x, y);
+    if (distance > 1) { x /= distance; y /= distance; }
+    setJoystickPosition({ x, y });
+    engineRef.current?.setMobileMovement(x, y);
+  };
+  const startJoystick = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    joystickPointer.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    updateJoystick(event);
+  };
+  const moveJoystick = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickPointer.current === event.pointerId) updateJoystick(event);
+  };
+  const stopJoystick = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickPointer.current !== event.pointerId) return;
+    joystickPointer.current = null;
+    setJoystickPosition({ x: 0, y: 0 });
+    engineRef.current?.setMobileMovement(0, 0);
+  };
 
   if (error) {
     return (
@@ -178,7 +227,7 @@ export default function GameClient() {
   }
 
   return (
-    <div className="fixed inset-0 select-none overflow-hidden bg-black font-sans">
+    <div data-mobile-game={touchDevice ? "true" : undefined} className="fixed inset-0 select-none overflow-hidden bg-black font-sans">
       <div ref={mountRef} className="absolute inset-0" />
       <div ref={overlayRef} className="pointer-events-none absolute inset-0 overflow-hidden" />
 
@@ -197,15 +246,15 @@ export default function GameClient() {
       {snap && cls && race && (
         <>
           {/* Player frame */}
-          <div className="absolute left-3 top-3 z-20 flex items-start gap-2">
+          <div className="game-top-left absolute left-3 top-3 z-20 flex items-start gap-2">
             <div className="relative">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-amber-600 bg-[radial-gradient(circle_at_40%_35%,#3a2f20,#0a0805)] text-4xl shadow-[0_0_14px_rgba(0,0,0,0.9)]">
+              <div className="game-player-avatar flex h-20 w-20 items-center justify-center rounded-full border-2 border-amber-600 bg-[radial-gradient(circle_at_40%_35%,#3a2f20,#0a0805)] text-4xl shadow-[0_0_14px_rgba(0,0,0,0.9)]">
                 {snap.name.slice(0, 1).toUpperCase()}
               </div>
               <span className="absolute -bottom-1 -left-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-amber-600 bg-black font-display text-sm font-bold text-amber-200">{snap.level}</span>
               {snap.inCombat && <span className="absolute -right-1 -top-1 text-lg">⚔️</span>}
             </div>
-            <div className="wow-frame mt-2 w-60 rounded p-1.5">
+            <div className="game-player-bars wow-frame mt-2 w-60 rounded p-1.5">
               <p className="px-1 font-display text-sm font-bold" style={{ color: cls.color }}>{snap.name}</p>
               <Bar value={snap.hp} max={snap.maxHp} from="#3ddc4a" to="#11741b" label={`${Math.round(snap.hp)} / ${snap.maxHp}`} />
               <div className="mt-0.5" />
@@ -213,7 +262,7 @@ export default function GameClient() {
             </div>
             {/* Target frame */}
             {snap.target && (
-              <div className={`wow-frame mt-2 w-60 rounded p-1.5 ${snap.target.elite ? "ring-2 ring-amber-500/70" : ""}`}>
+              <div className={`game-target-frame wow-frame mt-2 w-60 rounded p-1.5 ${snap.target.elite ? "ring-2 ring-amber-500/70" : ""}`}>
                 <div className="flex items-center justify-between px-1">
                   <p className="font-display text-sm font-bold text-red-300">{snap.target.elite && "☠ "}{snap.target.name}</p>
                   <span className="font-display text-xs text-amber-200">{snap.target.elite ? "Élite " : ""}Nv {snap.target.level}</span>
@@ -222,6 +271,12 @@ export default function GameClient() {
               </div>
             )}
           </div>
+          <div className="game-gold-counter absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-amber-300/35 bg-black/65 px-3 py-1.5 font-display text-sm font-semibold text-amber-100" role="status" aria-label={`${snap.gold} monedas de oro`}>
+            <Coins className="h-4 w-4 text-amber-300" aria-hidden="true" />
+            <span>{snap.gold}</span>
+            <span className="text-[10px] uppercase tracking-wider text-amber-200/65">Oro</span>
+          </div>
+
           {/* Buffs */}
           <div className="absolute left-28 top-[86px] z-20 flex gap-1">
             {snap.buffs.map((b) => (
@@ -233,10 +288,10 @@ export default function GameClient() {
           </div>
 
           {/* Minimap */}
-          <div className="absolute right-3 top-2 z-20 flex flex-col items-center">
+          <div className="game-minimap absolute right-3 top-2 z-20 flex flex-col items-center">
             <div className="wow-frame mb-1 rounded px-4 py-0.5 font-display text-sm text-amber-200">{zone?.name}</div>
             <div className="relative rounded-full border-[3px] border-[#8a6a30] shadow-[0_0_0_2px_#000,0_6px_20px_#000]">
-              <canvas ref={minimapRef} width={190} height={190} className="block rounded-full" />
+              <canvas ref={minimapRef} width={190} height={190} className="game-minimap-canvas block rounded-full" />
               <span className="absolute left-1/2 top-0.5 -translate-x-1/2 font-display text-xs font-bold text-amber-200 [text-shadow:0_0_3px_#000]">N</span>
               <button onClick={() => setWin((w) => ({ ...w, map: true }))} className="pointer-events-auto absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#8a6a30] bg-black text-amber-200 hover:text-white" title="Mapa (M)">
                 <MapIcon className="h-4 w-4" />
@@ -246,7 +301,7 @@ export default function GameClient() {
           </div>
 
           {/* Objectives */}
-          <div className="absolute right-3 top-[260px] z-10 w-72 [text-shadow:0_1px_2px_#000,0_0_6px_#000]">
+          <div className="game-objectives absolute right-3 top-[260px] z-10 w-72 [text-shadow:0_1px_2px_#000,0_0_6px_#000]">
             <p className="font-display text-base text-amber-300">Objetivos</p>
             {snap.objectives.filter((o) => o.zone === snap.zone).map((o) => (
               <div key={o.key} className="mt-1.5">
@@ -270,7 +325,7 @@ export default function GameClient() {
           )}
 
           {/* Combat log */}
-          <div className="absolute bottom-16 left-3 z-10 w-[380px]">
+          <div className="game-combat-log absolute bottom-16 left-3 z-10 w-[380px]">
             <div className="mb-0.5 flex gap-1">
               <span className="rounded-t border border-b-0 border-amber-800/60 bg-black/60 px-3 py-0.5 font-display text-[11px] text-amber-300">General</span>
               <span className="rounded-t px-3 py-0.5 font-display text-[11px] text-stone-500">Registro de combate</span>
@@ -283,13 +338,13 @@ export default function GameClient() {
           </div>
 
           {/* Bottom bars */}
-          <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center">
+          <div className="game-action-bar absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center">
             {snap.cast && (
               <div className="mb-3 w-72">
                 <Bar value={snap.cast.progress} max={1} from="#ffd84a" to="#a8701c" label={snap.cast.name} h="h-5" />
               </div>
             )}
-            <div className="wow-frame flex items-end gap-1 rounded-t-lg px-3 pb-2 pt-2">
+            <div className="game-action-bar-inner wow-frame flex items-end gap-1 rounded-t-lg px-3 pb-2 pt-2">
               {cls.abilities.map((a, i) => {
                 const cd = snap.cooldowns[i];
                 const noRes = snap.res < a.cost;
@@ -300,7 +355,7 @@ export default function GameClient() {
                     key={a.id}
                     onClick={() => eng?.useAbility(i)}
                     disabled={weaponLocked}
-                    className={`wow-slot group pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded text-3xl transition hover:border-amber-400 disabled:cursor-not-allowed ${noRes || weaponLocked ? "opacity-50 grayscale" : ""}`}
+                    className={`game-ability-slot wow-slot group pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded text-3xl transition hover:border-amber-400 disabled:cursor-not-allowed ${noRes || weaponLocked ? "opacity-50 grayscale" : ""}`}
                     title={weaponLocked ? `Equipa un ${weaponRequirement} para usar ${a.name}.` : `${a.name} — ${a.desc} (Coste ${a.cost}, ${a.cooldown}s)`}
                   >
                     <span style={{ filter: `drop-shadow(0 0 6px ${a.color})` }}>{a.icon}</span>
@@ -318,7 +373,7 @@ export default function GameClient() {
                     onClick={() => eng?.useQuick(i)}
                     onMouseMove={(e) => q && showTip(e, q.id)}
                     onMouseLeave={() => setTip(null)}
-                    className="wow-slot pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded text-2xl hover:border-amber-400"
+                    className="game-quick-slot wow-slot pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded text-2xl hover:border-amber-400"
                   >
                     {q ? ITEMS[q.id].icon : ""}
                     {q && <span className="absolute bottom-0 right-1 text-xs font-bold text-white [text-shadow:0_0_3px_#000]">{q.qty}</span>}
@@ -338,18 +393,18 @@ export default function GameClient() {
                     key={b.k}
                     title={b.t}
                     onClick={() => setWin((w) => ({ ...w, [b.k]: !w[b.k as keyof typeof w] }))}
-                    className="wow-slot flex h-9 w-9 items-center justify-center rounded text-amber-200 hover:border-amber-400 hover:text-white"
+                    className="game-menu-button wow-slot flex h-9 w-9 items-center justify-center rounded text-amber-200 hover:border-amber-400 hover:text-white"
                   >
                     <b.icon className="h-4 w-4" />
                   </button>
                 ))}
-                <button title="Guardar y salir" onClick={exit} className="wow-slot flex h-9 w-9 items-center justify-center rounded text-red-300 hover:border-red-400 hover:text-white">
+                <button title="Guardar y salir" onClick={exit} className="game-menu-button wow-slot flex h-9 w-9 items-center justify-center rounded text-red-300 hover:border-red-400 hover:text-white">
                   <LogOut className="h-4 w-4" />
                 </button>
               </div>
             </div>
             <div className="w-full">
-              <div className="relative h-3.5 w-full border border-black bg-black/80">
+              <div className="game-xp-bar relative h-3.5 w-full border border-black bg-black/80">
                 <div className="absolute inset-y-0 left-0 bg-gradient-to-b from-[#c04ad8] to-[#5a1a6a]" style={{ width: `${(snap.xp / snap.xpNext) * 100}%` }} />
                 {Array.from({ length: 19 }).map((_, i) => <span key={i} className="absolute inset-y-0 w-px bg-black/60" style={{ left: `${((i + 1) / 20) * 100}%` }} />)}
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-white [text-shadow:0_1px_1px_#000]">PE {Math.round(snap.xp)} / {snap.xpNext}</span>
@@ -361,7 +416,7 @@ export default function GameClient() {
 
           {/* Loot window */}
           {snap.loot && (
-            <div className="wow-frame absolute left-[30%] top-[30%] z-40 w-64 rounded-lg p-3">
+            <div className="game-overlay-window wow-frame absolute left-[30%] top-[30%] z-40 w-64 rounded-lg p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="font-display text-amber-200">{snap.loot.name}</p>
                 <button onClick={() => eng?.closeLoot()} className="text-stone-400 hover:text-white"><X className="h-4 w-4" /></button>
@@ -383,16 +438,16 @@ export default function GameClient() {
 
           {/* Vendor */}
           {snap.vendor !== null && (
-            <div className="wow-frame absolute left-4 top-28 z-40 w-80 rounded-lg p-3">
+            <div className="game-overlay-window game-vendor-window wow-frame absolute left-4 top-28 z-40 w-80 rounded-lg p-3">
               <div className="mb-1 flex items-center justify-between">
                 <p className="font-display text-lg text-amber-200">Mercader Aldric</p>
                 <button onClick={() => eng?.closeVendor()} className="text-stone-400 hover:text-white"><X className="h-4 w-4" /></button>
               </div>
-              <p className="mb-3 text-xs italic text-stone-400">&quot;¡Pociones frescas y buen acero, aventurero!&quot; — Clic derecho en tu inventario para vender.</p>
+              <p className="mb-3 text-xs italic text-stone-400">&quot;¡Pociones frescas y buen acero, aventurero!&quot; — Toca un artículo para comprarlo; vende la chatarra con el botón inferior.</p>
               <div className="grid grid-cols-1 gap-1">
                 {ZONES[snap.vendor].vendorItems.map((id) => {
                   const d = ITEMS[id];
-                  const price = d.value * 4;
+                  const price = d.buyPrice ?? d.value * 4;
                   return (
                     <button key={id} onClick={() => eng?.buy(id)} onMouseMove={(e) => showTip(e, id, "Clic para comprar", price)} onMouseLeave={() => setTip(null)} className={`flex items-center gap-2 rounded bg-black/40 p-1.5 text-left hover:bg-white/5 ${snap.gold < price ? "opacity-50" : ""}`}>
                       <span className="wow-slot flex h-9 w-9 items-center justify-center rounded text-xl">{d.icon}</span>
@@ -408,7 +463,7 @@ export default function GameClient() {
 
           {/* Inventory */}
           {win.inv && (
-            <div className="wow-frame absolute bottom-28 right-4 z-40 w-[330px] rounded-lg p-3">
+            <div className="game-overlay-window game-inventory-window wow-frame absolute bottom-28 right-4 z-40 w-[330px] rounded-lg p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="flex items-center gap-2 font-display text-amber-200"><Backpack className="h-4 w-4" /> Bolsas</p>
                 <button onClick={() => setWin((w) => ({ ...w, inv: false }))} className="text-stone-400 hover:text-white"><X className="h-4 w-4" /></button>
@@ -448,7 +503,7 @@ export default function GameClient() {
 
           {/* Character */}
           {win.char && (
-            <div className="wow-frame absolute left-4 top-28 z-40 w-[360px] rounded-lg p-4">
+            <div className="game-overlay-window game-character-window wow-frame absolute left-4 top-28 z-40 w-[360px] rounded-lg p-4">
               <div className="mb-2 flex items-center justify-between">
                 <div>
                   <p className="font-display text-lg" style={{ color: cls.color }}>{snap.name}</p>
@@ -492,7 +547,7 @@ export default function GameClient() {
           {/* World map */}
           {win.map && (
             <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70" onClick={() => setWin((w) => ({ ...w, map: false }))}>
-              <div className="wow-frame w-[min(1200px,94vw)] rounded-lg p-4" onClick={(e) => e.stopPropagation()}>
+              <div className="game-overlay-window game-map-window wow-frame w-[min(1200px,94vw)] rounded-lg p-4" onClick={(e) => e.stopPropagation()}>
                 <div className="mb-3 flex items-center justify-between">
                   <p className="flex items-center gap-2 font-display text-xl text-amber-200"><MapIcon className="h-5 w-5" /> Mapa del mundo</p>
                   <button onClick={() => setWin((w) => ({ ...w, map: false }))} className="text-stone-400 hover:text-white"><X className="h-5 w-5" /></button>
@@ -531,14 +586,13 @@ export default function GameClient() {
           {/* Help */}
           {win.help && (
             <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60" onClick={() => setWin((w) => ({ ...w, help: false }))}>
-              <div className="wow-frame w-[min(620px,92vw)] rounded-lg p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="game-overlay-window game-help-window wow-frame w-[min(620px,92vw)] rounded-lg p-6" onClick={(e) => e.stopPropagation()}>
                 <p className="flex items-center gap-2 font-display text-2xl text-amber-200"><BookOpen className="h-6 w-6" /> Guía del aventurero</p>
                 <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                  {[
-                    ["W A S D", "Moverse"], ["Espacio", "Saltar"], ["Arrastrar ratón", "Girar cámara"], ["Rueda", "Zoom"],
-                    ["Clic / TAB", "Seleccionar enemigo"], ["Clic derecho", "Atacar objetivo"], ["1 - 5", "Habilidades"], ["6 - 9", "Consumibles"],
-                    ["F", "Saquear / comerciar"], ["B / I", "Inventario"], ["C", "Personaje"], ["M", "Mapa"],
-                  ].map(([k, v]) => (
+                  {(touchDevice
+                    ? [["Joystick", "Caminar y correr"], ["Deslizar pantalla", "Girar cámara"], ["Tocar enemigo", "Seleccionar objetivo"], ["Tocar habilidades", "Atacar / lanzar magia"], ["Tocar mercader", "Comerciar"], ["Botones inferiores", "Inventario, mapa y personaje"]]
+                    : [["W A S D", "Moverse"], ["Espacio", "Saltar"], ["Arrastrar ratón", "Girar cámara"], ["Rueda", "Zoom"], ["Clic / TAB", "Seleccionar enemigo"], ["Clic derecho", "Atacar objetivo"], ["1 - 5", "Habilidades"], ["6 - 9", "Consumibles"], ["F", "Saquear / comerciar"], ["B / I", "Inventario"], ["C", "Personaje"], ["M", "Mapa"]]
+                  ).map(([k, v]) => (
                     <div key={k} className="flex items-center justify-between border-b border-stone-800 py-1">
                       <span className="rounded border border-amber-700/60 bg-black/50 px-2 py-0.5 font-display text-xs text-amber-200">{k}</span>
                       <span className="text-stone-300">{v}</span>
@@ -560,6 +614,30 @@ export default function GameClient() {
             </div>
           )}
         </>
+      )}
+
+      {touchDevice && snap && (
+        <div
+          className="mobile-joystick absolute bottom-4 left-4 z-30 touch-none select-none"
+          role="group"
+          aria-label="Joystick circular para caminar; desliza el dedo para moverte"
+          onPointerDown={startJoystick}
+          onPointerMove={moveJoystick}
+          onPointerUp={stopJoystick}
+          onPointerCancel={stopJoystick}
+          onLostPointerCapture={stopJoystick}
+        >
+          <span className="mobile-joystick-ring" />
+          <span className="mobile-joystick-thumb" style={{ transform: `translate(${joystickPosition.x * 32}px, ${-joystickPosition.y * 32}px)` }} />
+        </div>
+      )}
+
+      {touchDevice && portraitOrientation && (
+        <div className="portrait-rotate-prompt absolute inset-0 z-[70] flex flex-col items-center justify-center gap-4 bg-[#071012]/95 px-8 text-center text-amber-50 backdrop-blur-sm" role="status">
+          <RotateCcw className="h-10 w-10 text-amber-300" aria-hidden="true" />
+          <h2 className="font-display text-2xl font-bold">Gira el teléfono</h2>
+          <p className="max-w-xs text-sm leading-relaxed text-stone-300">Fantasy Realms está optimizado para jugar en horizontal.</p>
+        </div>
       )}
 
       {tip && <ItemTooltip {...tip} />}

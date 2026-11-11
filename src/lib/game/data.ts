@@ -66,6 +66,7 @@ export interface ItemDef {
   level: number;
   stats?: Stats;
   value: number;
+  buyPrice?: number;
   effect?: { heal?: number; mana?: number; buff?: "str" | "armor" | "speed"; duration?: number };
   desc?: string;
 }
@@ -227,10 +228,11 @@ export const ITEMS: Record<string, ItemDef> = Object.fromEntries(
   [
     // Starter weapons
     I({ id: "sword_rusty", name: "Espada oxidada", icon: "🗡️", type: "weapon", rarity: "common", level: 1, stats: { dmg: 6, str: 1 }, value: 5 }),
+    I({ id: "travelers_axe", name: "Hacha de viajero", icon: "🪓", type: "weapon", rarity: "common", level: 1, stats: { dmg: 7, str: 1 }, value: 5, buyPrice: 20 }),
     I({ id: "hammer_worn", name: "Martillo desgastado", icon: "🔨", type: "weapon", rarity: "common", level: 1, stats: { dmg: 6, str: 1, sta: 1 }, value: 5 }),
     I({ id: "daggers_chipped", name: "Dagas melladas", icon: "🔪", type: "weapon", rarity: "common", level: 1, stats: { dmg: 5, agi: 2 }, value: 5 }),
     I({ id: "bow_simple", name: "Arco de fresno", icon: "🏹", type: "weapon", rarity: "common", level: 1, stats: { dmg: 6, agi: 1 }, value: 5 }),
-    I({ id: "staff_apprentice", name: "Bastón de aprendiz", icon: "🪄", type: "weapon", rarity: "common", level: 1, stats: { dmg: 5, int: 2 }, value: 5 }),
+    I({ id: "staff_apprentice", name: "Bastón de aprendiz", icon: "🪄", type: "weapon", rarity: "common", level: 1, stats: { dmg: 5, int: 2 }, value: 5, buyPrice: 20 }),
     I({ id: "skullstaff_cultist", name: "Bastón del cultista", icon: "💀", type: "weapon", rarity: "common", level: 1, stats: { dmg: 5, int: 2 }, value: 5 }),
   I({ id: "orb_apprentice", name: "Orbe de aprendiz", icon: "🔮", type: "weapon", rarity: "common", level: 1, stats: { dmg: 5, int: 2 }, value: 5 }),
     I({ id: "chest_recruit", name: "Cota de recluta", icon: "🦺", type: "chest", rarity: "common", level: 1, stats: { armor: 8, sta: 1 }, value: 4 }),
@@ -311,7 +313,7 @@ export const ZONES: ZoneDef[] = [
     fog: "#b9cfe0", sky: "#86b6e6", sun: "#fff1d0", ambient: "#8aa6c2", sunIntensity: 2.6,
     ground: ["#4d6b2a", "#6f8a38", "#8a8466"],
     mobs: [{ id: "wild_boar", count: 26 }, { id: "bandit", count: 22 }, { id: "raptor", count: 18 }, { id: "hogger", count: 1 }],
-    vendorItems: ["potion_hp", "potion_mana", "bread", "elixir_stone", "elixir_giant", "plated_greaves", "war_axe", "staff_apprentice", "orb_apprentice"],
+    vendorItems: ["potion_hp", "potion_mana", "bread", "elixir_stone", "elixir_giant", "plated_greaves", "travelers_axe", "staff_apprentice"],
   },
   {
     id: 2, name: "Tierras Calcinadas", subtitle: "Un páramo volcánico de ceniza y fuego", levels: "10-16",

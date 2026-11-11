@@ -42,3 +42,160 @@
 @keyframes ember { 0% { transform: translateY(0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-100vh) translateX(40px); opacity: 0; } }
 @keyframes fade-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 .fade-rise { animation: fade-rise 0.9s cubic-bezier(.2,.7,.2,1) both; }
+
+.mobile-joystick {
+  width: 124px;
+  height: 124px;
+  border: 1px solid rgba(242, 196, 105, 0.52);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgba(57, 43, 25, 0.52), rgba(4, 6, 6, 0.72));
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.75), 0 4px 20px rgba(0, 0, 0, 0.42);
+  touch-action: none;
+  pointer-events: auto;
+}
+.mobile-joystick-ring {
+  position: absolute;
+  inset: 10px;
+  border: 1px solid rgba(255, 231, 180, 0.18);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.mobile-joystick-thumb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border: 1px solid rgba(255, 225, 161, 0.82);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 30%, #b48a43, #44331d 72%);
+  box-shadow: inset 0 1px 5px rgba(255, 235, 190, 0.4), 0 2px 10px #000b;
+  pointer-events: none;
+}
+
+@media (pointer: coarse) and (orientation: landscape) {
+  [data-mobile-game="true"] .game-top-left {
+    top: max(5px, env(safe-area-inset-top)) !important;
+    left: max(6px, env(safe-area-inset-left)) !important;
+    gap: 5px !important;
+  }
+  [data-mobile-game="true"] .game-player-avatar {
+    width: 46px !important;
+    height: 46px !important;
+    font-size: 1.35rem !important;
+  }
+  [data-mobile-game="true"] .game-player-bars {
+    width: 132px !important;
+    margin-top: 0 !important;
+    padding: 4px !important;
+  }
+  [data-mobile-game="true"] .game-player-bars p {
+    font-size: 0.68rem !important;
+  }
+  [data-mobile-game="true"] .game-target-frame {
+    width: 154px !important;
+    margin-top: 0 !important;
+    padding: 4px !important;
+  }
+  [data-mobile-game="true"] .game-target-frame p {
+    font-size: 0.68rem !important;
+  }
+  [data-mobile-game="true"] .game-minimap {
+    top: max(5px, env(safe-area-inset-top)) !important;
+    right: max(6px, env(safe-area-inset-right)) !important;
+  }
+  [data-mobile-game="true"] .game-minimap-canvas {
+    width: 94px !important;
+    height: 94px !important;
+  }
+  [data-mobile-game="true"] .game-minimap > div:first-child {
+    max-width: 110px;
+    padding-inline: 6px;
+    font-size: 0.62rem;
+  }
+  [data-mobile-game="true"] .game-objectives,
+  [data-mobile-game="true"] .game-combat-log {
+    display: none !important;
+  }
+  [data-mobile-game="true"] .game-gold-counter {
+    top: max(5px, env(safe-area-inset-top)) !important;
+    padding: 4px 10px !important;
+    font-size: 0.75rem !important;
+  }
+  [data-mobile-game="true"] .game-action-bar {
+    bottom: max(5px, env(safe-area-inset-bottom)) !important;
+    left: calc(50% + 66px) !important;
+    max-width: calc(100vw - 170px);
+  }
+  [data-mobile-game="true"] .game-action-bar-inner {
+    gap: 2px !important;
+    padding: 5px 6px 6px !important;
+  }
+  [data-mobile-game="true"] .game-ability-slot {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 1.35rem !important;
+  }
+  [data-mobile-game="true"] .game-quick-slot {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 1rem !important;
+  }
+  [data-mobile-game="true"] .game-menu-button {
+    width: 26px !important;
+    height: 26px !important;
+  }
+  [data-mobile-game="true"] .game-action-bar-inner > span.mx-1 {
+    margin-inline: 2px !important;
+    height: 30px !important;
+  }
+  [data-mobile-game="true"] .game-xp-bar {
+    height: 10px !important;
+  }
+  [data-mobile-game="true"] .mobile-joystick {
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    left: max(10px, env(safe-area-inset-left)) !important;
+    width: 118px;
+    height: 118px;
+  }
+  [data-mobile-game="true"] .game-overlay-window {
+    max-height: calc(100dvh - 20px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  [data-mobile-game="true"] .game-vendor-window {
+    top: max(6px, env(safe-area-inset-top)) !important;
+    left: max(6px, env(safe-area-inset-left)) !important;
+    width: min(300px, 42vw) !important;
+  }
+  [data-mobile-game="true"] .game-inventory-window {
+    right: max(6px, env(safe-area-inset-right)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom)) !important;
+    width: min(320px, 46vw) !important;
+  }
+  [data-mobile-game="true"] .game-character-window {
+    top: max(6px, env(safe-area-inset-top)) !important;
+    left: max(6px, env(safe-area-inset-left)) !important;
+    width: min(340px, 48vw) !important;
+  }
+  [data-mobile-game="true"] .game-map-window,
+  [data-mobile-game="true"] .game-help-window {
+    width: min(94vw, 760px) !important;
+    padding: 12px !important;
+  }
+  [data-mobile-game="true"] .zone-title p:first-child {
+    font-size: 1.5rem !important;
+  }
+  [data-mobile-game="true"] .zone-title p + p {
+    margin-top: 4px !important;
+    font-size: 0.75rem !important;
+  }
+}
+
+@media (pointer: coarse) and (orientation: portrait) {
+  [data-mobile-game="true"] .portrait-rotate-prompt {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

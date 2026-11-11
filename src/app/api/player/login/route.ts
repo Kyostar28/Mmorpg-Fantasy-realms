@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       class_name: undefined,
       level: 1,
       xp: 0,
-      gold: 10,
+      gold: 100,
       kills: 0,
       zone: undefined,
       pos_x: undefined,

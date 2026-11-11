@@ -68,7 +68,7 @@ export class GameEngine {
   private overlay: HTMLElement;
   private cb: EngineCallbacks;
   private renderer!: THREE.WebGLRenderer;
-  private composer!: EffectComposer;
+  private composer: EffectComposer | null = null;
   private scene = new THREE.Scene();
   private camera!: THREE.PerspectiveCamera;
   private raf = 0;
@@ -144,7 +144,9 @@ export class GameEngine {
   private camPitch = 0.32;
   private camDist = 11;
   private graphicsMode: "low" | "normal" | "high" = "normal";
-  private drag: { x: number; y: number; moved: number; button: number } | null = null;
+  private isMobile = false;
+  private touchMove = new THREE.Vector2();
+  private drag: { x: number; y: number; moved: number; button: number; pointerType: string } | null = null;
   private raycaster = new THREE.Raycaster();
   private saveTimer = 15;
   private dirty = false;
@@ -169,14 +171,20 @@ export class GameEngine {
       await new Promise((r) => setTimeout(r, 16));
       if (this.disposed) throw new Error("disposed");
     };
-    console.log("[Engine] init", this.rec.username, this.race.id, this.cls.id, "graphics:", this.rec.graphics);
-    await step("Preparando el renderizador…", 5);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    const graphics = this.rec.graphics ?? "normal";
+    this.isMobile = window.matchMedia("(pointer: coarse)").matches || /Android/i.test(navigator.userAgent);
+    const graphics = this.isMobile ? "low" : this.rec.graphics ?? "normal";
     this.graphicsMode = graphics;
-    const pixelRatio = graphics === "high" ? window.devicePixelRatio : Math.min(window.devicePixelRatio, 1.5);
+    console.log("[Engine] init", this.rec.username, this.race.id, this.cls.id, "graphics:", graphics);
+    await step("Preparando el renderizador…", 5);
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: graphics !== "low",
+      powerPreference: this.isMobile ? "low-power" : "high-performance",
+      stencil: false,
+    });
+    const pixelRatio = Math.min(window.devicePixelRatio, this.isMobile ? 1.25 : graphics === "high" ? 2 : 1.5);
     this.renderer.setPixelRatio(pixelRatio);
     if (!this.container) throw new Error("Container is null");
+    this.renderer.domElement.style.touchAction = "none";
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.shadowMap.enabled = graphics !== "low";
     this.renderer.shadowMap.type = graphics === "high" ? THREE.PCFShadowMap : THREE.BasicShadowMap;
@@ -203,7 +211,7 @@ export class GameEngine {
     this.scene.add(this.sun, this.sun.target);
 
     await step("Esculpiendo montañas y valles…", 15);
-    const terrain = buildTerrain();
+    const terrain = buildTerrain(graphics === "low" ? "low" : "normal");
     this.scene.add(terrain.mesh);
     this.buildMapCanvas(terrain.mesh.geometry);
 
@@ -214,8 +222,9 @@ export class GameEngine {
     this.sky = sky.sky;
 
     await step("Plantando bosques ancestrales…", 45);
-    this.veg = buildVegetation(this.scene);
-    this.grass = buildGrass(this.scene);
+    const mobileDensity = graphics === "low" ? 0.55 : 1;
+    this.veg = buildVegetation(this.scene, mobileDensity);
+    this.grass = buildGrass(this.scene, graphics === "low" ? 7000 : 26000);
 
     await step("Levantando aldeas…", 65);
     this.towns = buildTowns(this.scene);
@@ -225,7 +234,7 @@ export class GameEngine {
       if (!arr) this.colliderGrid.set(k, (arr = []));
       arr.push(c);
     }
-    this.fx = new Particles(this.scene, 7000);
+    this.fx = new Particles(this.scene, graphics === "low" ? 1800 : 7000);
     this.rings = new Rings(this.scene);
 
     await step("Despertando a las criaturas…", 78);
@@ -235,15 +244,15 @@ export class GameEngine {
     await step("Forjando a tu héroe…", 90);
     await this.setupPlayer();
 
-    // post-processing
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
     if (graphics !== "low") {
+      const composer = new EffectComposer(this.renderer);
+      composer.addPass(new RenderPass(this.scene, this.camera));
       const bloomStrength = graphics === "high" ? 0.7 : 0.55;
       const bloom = new UnrealBloomPass(new THREE.Vector2(this.container.clientWidth / 2, this.container.clientHeight / 2), bloomStrength, 0.5, 0.82);
-      this.composer.addPass(bloom);
+      composer.addPass(bloom);
+      composer.addPass(new OutputPass());
+      this.composer = composer;
     }
-    this.composer.addPass(new OutputPass());
 
     this.bindInput();
     await step("¡Bienvenido!", 100);
@@ -257,7 +266,8 @@ export class GameEngine {
     const p = geo.attributes.position as THREE.BufferAttribute;
     const c = geo.attributes.color as THREE.BufferAttribute;
     const n = geo.attributes.normal as THREE.BufferAttribute;
-    const W = 801, H = 271;
+    const W = this.graphicsMode === "low" ? 361 : 801;
+    const H = this.graphicsMode === "low" ? 123 : 271;
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const ctx = cv.getContext("2d")!;
@@ -288,13 +298,17 @@ export class GameEngine {
     this.minimap = c;
   }
 
+  setMobileMovement(x: number, y: number) {
+    this.touchMove.set(x, y).clampLength(0, 1);
+  }
+
   // =========================================================================
   // Player
   // =========================================================================
   private async setupPlayer() {
     this.level = this.rec.level ?? 1;
     this.xp = this.rec.xp ?? 0;
-    this.gold = this.rec.gold ?? 0;
+    this.gold = this.rec.gold ?? 100;
     this.kills = this.rec.kills ?? 0;
     let inv: (InvSlot | null)[] = [];
     let eq: Equipment = {};
@@ -305,6 +319,7 @@ export class GameEngine {
       const items = [...this.cls.startItems];
       for (const id of items) {
         const it = ITEMS[id];
+        if (it?.type === "weapon") continue;
         if (it && it.type !== "consumable" && it.type !== "junk" && !eq[it.type as Slot]) eq[it.type as Slot] = id;
         else this.addToInv(id, 1, inv);
       }
@@ -584,21 +599,31 @@ export class GameEngine {
     if (k === "escape") { this.target = null; this.autoAttack = false; this.openLoot = null; this.openVendor = null; }
   };
   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase());
+  private onWindowBlur = () => {
+    this.keys.clear();
+    this.touchMove.set(0, 0);
+  };
   private onPointerDown = (e: PointerEvent) => {
-    this.drag = { x: e.clientX, y: e.clientY, moved: 0, button: e.button };
+    if (e.pointerType === "touch") e.preventDefault();
+    this.drag = { x: e.clientX, y: e.clientY, moved: 0, button: e.button, pointerType: e.pointerType };
   };
   private onPointerMove = (e: PointerEvent) => {
     if (!this.drag) return;
     const dx = e.clientX - this.drag.x, dy = e.clientY - this.drag.y;
     this.drag.moved += Math.abs(dx) + Math.abs(dy);
     this.drag.x = e.clientX; this.drag.y = e.clientY;
-    this.camYaw -= dx * 0.006;
-    this.camPitch = Math.max(-0.15, Math.min(1.3, this.camPitch + dy * 0.005));
+    const sensitivity = this.drag.pointerType === "touch" ? 0.0048 : 0.006;
+    this.camYaw -= dx * sensitivity;
+    this.camPitch = Math.max(-0.15, Math.min(1.3, this.camPitch + dy * sensitivity));
     if (this.drag.button === 2) this.facing = this.camYaw + Math.PI;
   };
   private onPointerUp = (e: PointerEvent) => {
     if (this.drag && this.drag.moved < 6 && e.target === this.renderer.domElement) this.clickSelect(e);
     this.drag = null;
+  };
+  private onPointerCancel = () => {
+    this.drag = null;
+    this.touchMove.set(0, 0);
   };
   private onWheel = (e: WheelEvent) => {
     this.camDist = Math.max(3.5, Math.min(30, this.camDist + e.deltaY * 0.01));
@@ -607,7 +632,7 @@ export class GameEngine {
     if (!this.renderer || !this.container) return;
     const w = this.container.clientWidth, h = this.container.clientHeight;
     this.renderer.setSize(w, h);
-    this.composer.setSize(w, h);
+    this.composer?.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   };
@@ -619,10 +644,11 @@ export class GameEngine {
     this.renderer.domElement.addEventListener("pointerdown", this.onPointerDown);
     window.addEventListener("pointermove", this.onPointerMove);
     window.addEventListener("pointerup", this.onPointerUp);
+    window.addEventListener("pointercancel", this.onPointerCancel);
     this.renderer.domElement.addEventListener("wheel", this.onWheel, { passive: true });
     this.renderer.domElement.addEventListener("contextmenu", this.onContext);
     window.addEventListener("resize", this.onResize);
-    window.addEventListener("blur", () => this.keys.clear());
+    window.addEventListener("blur", this.onWindowBlur);
   }
 
   private clickSelect(e: PointerEvent) {
@@ -1137,7 +1163,7 @@ export class GameEngine {
   buy(id: string) {
     const it = ITEMS[id];
     if (!it) return;
-    const price = it.value * 4;
+    const price = it.buyPrice ?? it.value * 4;
     if (this.gold < price) { this.cb.onLog("No tienes suficiente oro.", "#ff5050"); return; }
     if (!this.addToInv(id, 1)) { this.cb.onLog("Tu inventario está lleno.", "#ff5050"); return; }
     this.gold -= price;
@@ -1177,7 +1203,8 @@ export class GameEngine {
     this.lastFrame = now;
     this.time += dt;
     this.update(dt);
-    this.composer.render();
+    if (this.composer) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
   };
 
   private collide(x: number, z: number, r = 0.5): [number, number] {
@@ -1223,12 +1250,13 @@ export class GameEngine {
       const right = new THREE.Vector3(Math.cos(this.camYaw), 0, -Math.sin(this.camYaw));
       const dir = new THREE.Vector3();
       const k = this.keys;
-      if (k.has("w") || k.has("arrowup")) dir.add(fwd);
-      if (k.has("s") || k.has("arrowdown")) dir.sub(fwd);
-      if (k.has("a") || k.has("arrowleft")) dir.sub(right);
-      if (k.has("d") || k.has("arrowright")) dir.add(right);
-      // Check for running (W + R or Shift)
-      isRunning = (k.has("w") || k.has("arrowup")) && (k.has("r") || k.has("shift"));
+      const forwardInput = Number(k.has("w") || k.has("arrowup")) - Number(k.has("s") || k.has("arrowdown")) + this.touchMove.y;
+      const strafeInput = Number(k.has("d") || k.has("arrowright")) - Number(k.has("a") || k.has("arrowleft")) + this.touchMove.x;
+      dir.addScaledVector(fwd, forwardInput);
+      dir.addScaledVector(right, strafeInput);
+      const inputMagnitude = Math.min(1, dir.length());
+      const keyboardForward = k.has("w") || k.has("arrowup");
+      isRunning = (keyboardForward && (k.has("r") || k.has("shift"))) || this.touchMove.lengthSq() >= 0.78;
       if (this.dash) {
         moving = true;
         isRunning = true;
@@ -1241,15 +1269,15 @@ export class GameEngine {
           this.pos.x += step.x; this.pos.z += step.z;
           this.fx.emit(this.pChest(), new THREE.Vector3(0, 0.5, 0), new THREE.Color("#ff8844"), 0.6, 0.4);
         }
-      } else if (dir.lengthSq() > 0) {
+      } else if (inputMagnitude > 0.04) {
         moving = true;
         dir.normalize();
-        const back = (k.has("s") || k.has("arrowdown")) && !(k.has("w") || k.has("arrowup"));
+        const back = forwardInput < -0.1;
         const groundH = heightAt(this.pos.x, this.pos.z);
         const swimming = groundH < -1.3;
         // Increase speed when running (W + R)
         const runMultiplier = isRunning ? 1.6 : 1;
-        const sp = 9.5 * this.speedMult() * (back ? 0.6 : 1) * (swimming ? 0.6 : 1) * runMultiplier;
+        const sp = 9.5 * inputMagnitude * this.speedMult() * (back ? 0.6 : 1) * (swimming ? 0.6 : 1) * runMultiplier;
         let nx = this.pos.x + dir.x * sp * dt, nz = this.pos.z + dir.z * sp * dt;
         // slope limit
         const nh = heightAt(nx, nz);
@@ -1752,7 +1780,10 @@ export class GameEngine {
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("pointermove", this.onPointerMove);
     window.removeEventListener("pointerup", this.onPointerUp);
+    window.removeEventListener("pointercancel", this.onPointerCancel);
     window.removeEventListener("resize", this.onResize);
+    window.removeEventListener("blur", this.onWindowBlur);
+    this.composer?.dispose();
     if (this.renderer) {
       this.renderer.domElement.remove();
       this.renderer.dispose();
